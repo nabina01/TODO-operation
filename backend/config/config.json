@@ -1,0 +1,18 @@
+{
+  "development": {
+    "username": "root",
+    "password": "root1234",
+    "database": "todo_db",
+    "host": "127.0.0.1",
+    "port": 3307,
+    "dialect": "mysql"
+  },
+  "docker": {
+    "username": "root",
+    "password": "root1234",
+    "database": "todo_db",
+    "host": "mysql",
+    "port": 3306,
+    "dialect": "mysql"
+  }
+}
