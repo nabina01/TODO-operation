@@ -11,13 +11,9 @@ const TodoForm: React.FC = () => {
     e.preventDefault();
     if (!title.trim()) return;
 
-    try {
-      await dispatch(createTodo({ title, description, completed: false })).unwrap();
-      setTitle('');
-      setDescription('');
-    } catch (error) {
-      console.error('Failed to create todo:', error);
-    }
+    await dispatch(createTodo({ title, description, completed: false }));
+    setTitle('');
+    setDescription('');
   };
 
   return (
@@ -26,7 +22,7 @@ const TodoForm: React.FC = () => {
       <div className="form-group">
         <input
           type="text"
-          placeholder="Title *"
+          placeholder="Title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           required

@@ -13,33 +13,21 @@ const TodoItem: React.FC<TodoItemProps> = ({ todo }) => {
   const [description, setDescription] = useState(todo.description);
   const dispatch = useAppDispatch();
 
-  const handleToggleComplete = async () => {
-    try {
-      await dispatch(updateTodo({ id: todo.id, data: { completed: !todo.completed } })).unwrap();
-    } catch (error) {
-      console.error('Failed to update todo:', error);
-    }
+  const handleToggleComplete = () => {
+    dispatch(updateTodo({ id: todo.id, data: { completed: !todo.completed } }));
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
-    try {
-      await dispatch(updateTodo({ id: todo.id, data: { title, description } })).unwrap();
-      setIsEditing(false);
-    } catch (error) {
-      console.error('Failed to update todo:', error);
-    }
+    await dispatch(updateTodo({ id: todo.id, data: { title, description } }));
+    setIsEditing(false);
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (window.confirm('Are you sure you want to delete this todo?')) {
-      try {
-        await dispatch(deleteTodo(todo.id)).unwrap();
-      } catch (error) {
-        console.error('Failed to delete todo:', error);
-      }
+      dispatch(deleteTodo(todo.id));
     }
   };
 

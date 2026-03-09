@@ -20,14 +20,10 @@ if (config.use_env_variable) {
   sequelize = new Sequelize(config.database, config.username, config.password, config);
 }
 
-// Initialize models
 db.Todo = TodoModel(sequelize);
 
-// Run associations if any
 Object.values(db).forEach((model: any) => {
-  if (model.associate) {
-    model.associate(db);
-  }
+  if (model.associate) model.associate(db);
 });
 
 db.sequelize = sequelize;

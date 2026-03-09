@@ -5,12 +5,16 @@ interface ValidationError {
   message: string;
 }
 
+const sendValidationError = (res: Response, errors: ValidationError[]): void => {
+  res.status(400).json({ success: false, message: 'Validation failed', errors });
+};
+
 export const validateCreateTodo = (req: Request, res: Response, next: NextFunction): void => {
   const errors: ValidationError[] = [];
   const { title, description, completed } = req.body;
 
-  if (!title || typeof title !== 'string' || title.trim() === '') {
-    errors.push({ field: 'title', message: 'Title is required and must be a non-empty string' });
+  if (!title || typeof title !== 'string' || !title.trim()) {
+    errors.push({ field: 'title', message: 'Title is required' });
   }
 
   if (description !== undefined && typeof description !== 'string') {
@@ -22,11 +26,7 @@ export const validateCreateTodo = (req: Request, res: Response, next: NextFuncti
   }
 
   if (errors.length > 0) {
-    res.status(400).json({
-      success: false,
-      message: 'Validation failed',
-      errors
-    });
+    sendValidationError(res, errors);
     return;
   }
 
@@ -37,7 +37,7 @@ export const validateUpdateTodo = (req: Request, res: Response, next: NextFuncti
   const errors: ValidationError[] = [];
   const { title, description, completed } = req.body;
 
-  if (title !== undefined && (typeof title !== 'string' || title.trim() === '')) {
+  if (title !== undefined && (typeof title !== 'string' || !title.trim())) {
     errors.push({ field: 'title', message: 'Title must be a non-empty string' });
   }
 
@@ -50,11 +50,7 @@ export const validateUpdateTodo = (req: Request, res: Response, next: NextFuncti
   }
 
   if (errors.length > 0) {
-    res.status(400).json({
-      success: false,
-      message: 'Validation failed',
-      errors
-    });
+    sendValidationError(res, errors);
     return;
   }
 
@@ -62,14 +58,10 @@ export const validateUpdateTodo = (req: Request, res: Response, next: NextFuncti
 };
 
 export const validateTodoId = (req: Request, res: Response, next: NextFunction): void => {
-  const id = parseInt(req.params.id as string);
+  const id = parseInt(req.params.id);
   
   if (isNaN(id) || id <= 0) {
-    res.status(400).json({
-      success: false,
-      message: 'Invalid todo ID',
-      errors: [{ field: 'id', message: 'ID must be a positive number' }]
-    });
+    sendValidationError(res, [{ field: 'id', message: 'Invalid ID' }]);
     return;
   }
 

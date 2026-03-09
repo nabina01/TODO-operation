@@ -17,9 +17,7 @@ class Todo extends Model<TodoAttributes> implements TodoAttributes {
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 
-  static associate(models: any) {
-    // define association here if needed
-  }
+  static associate(models: any) {}
 }
 
 export default (sequelize: Sequelize) => {

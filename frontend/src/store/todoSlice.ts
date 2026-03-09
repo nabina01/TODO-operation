@@ -13,7 +13,6 @@ const initialState: TodoState = {
   error: null,
 };
 
-// Async thunks
 export const fetchTodos = createAsyncThunk('todos/fetchAll', async () => {
   return await todoService.getAll();
 });
@@ -43,7 +42,6 @@ const todoSlice = createSlice({
   reducers: {},
   extraReducers: (builder) => {
     builder
-      // Fetch todos
       .addCase(fetchTodos.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -56,47 +54,15 @@ const todoSlice = createSlice({
         state.loading = false;
         state.error = action.error.message || 'Failed to fetch todos';
       })
-      // Create todo
-      .addCase(createTodo.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
       .addCase(createTodo.fulfilled, (state, action: PayloadAction<Todo>) => {
-        state.loading = false;
         state.todos.unshift(action.payload);
       })
-      .addCase(createTodo.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.error.message || 'Failed to create todo';
-      })
-      // Update todo
-      .addCase(updateTodo.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
       .addCase(updateTodo.fulfilled, (state, action: PayloadAction<Todo>) => {
-        state.loading = false;
         const index = state.todos.findIndex((todo) => todo.id === action.payload.id);
-        if (index !== -1) {
-          state.todos[index] = action.payload;
-        }
-      })
-      .addCase(updateTodo.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.error.message || 'Failed to update todo';
-      })
-      // Delete todo
-      .addCase(deleteTodo.pending, (state) => {
-        state.loading = true;
-        state.error = null;
+        if (index !== -1) state.todos[index] = action.payload;
       })
       .addCase(deleteTodo.fulfilled, (state, action: PayloadAction<number>) => {
-        state.loading = false;
         state.todos = state.todos.filter((todo) => todo.id !== action.payload);
-      })
-      .addCase(deleteTodo.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.error.message || 'Failed to delete todo';
       });
   },
 });
