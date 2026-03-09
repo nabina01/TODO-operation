@@ -1,8 +1,4 @@
-# Full Stack Todo Application
 
-A modern full-stack Todo application built with React, TypeScript, Node.js, Express, Sequelize ORM, and MySQL.
-
-## Tech Stack
 
 ### Frontend
 - **React** - UI library
@@ -34,52 +30,6 @@ A modern full-stack Todo application built with React, TypeScript, Node.js, Expr
 - ✅ TypeScript for type safety
 - ✅ Redux Toolkit for state management
 
-## Project Structure
-
-```
-TODO-operation/
-├── backend/
-│   ├── config/
-│   │   └── config.json          # Database configuration
-│   ├── migrations/
-│   │   └── *-create-todo.js     # Database migration files
-│   ├── models/
-│   │   ├── index.ts             # Sequelize models setup
-│   │   └── todo.ts              # Todo model
-│   ├── src/
-│   │   ├── controllers/
-│   │   │   └── todo.controllers.ts   # Todo CRUD controllers
-│   │   ├── middleware/
-│   │   │   └── validation.ts         # Request validation
-│   │   └── routes/
-│   │       └── todo.routes.ts        # API routes
-│   ├── .env.example             # Environment variables template
-│   ├── .gitignore
-│   ├── docker-compose.yml       # Docker services configuration
-│   ├── Dockerfile
-│   ├── package.json
-│   ├── server.ts                # Express server entry point
-│   └── tsconfig.json
-└── frontend/
-    └── todo-frontend/
-        ├── src/
-        │   ├── components/
-        │   │   ├── TodoForm.tsx      # Create todo form
-        │   │   ├── TodoItem.tsx      # Todo item component
-        │   │   └── TodoList.tsx      # List of todos
-        │   ├── services/
-        │   │   └── todoService.ts    # API service
-        │   ├── store/
-        │   │   ├── hooks.ts          # Redux hooks
-        │   │   ├── store.ts          # Redux store
-        │   │   └── todoSlice.ts      # Todo slice
-        │   ├── App.tsx
-        │   ├── App.css
-        │   └── main.tsx
-        ├── package.json
-        ├── tsconfig.json
-        └── vite.config.ts
-```
 
 ## Prerequisites
 
@@ -167,87 +117,6 @@ npm install
 npm run dev
 ```
 
-The frontend will be available at `http://localhost:5173`
-
-## API Endpoints
-
-### Base URL: `http://localhost:5000/api/todos`
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/` | Get all todos |
-| GET | `/:id` | Get a specific todo |
-| POST | `/` | Create a new todo |
-| PUT | `/:id` | Update a todo |
-| DELETE | `/:id` | Delete a todo |
-
-### Request/Response Examples
-
-#### Create Todo
-```http
-POST /api/todos
-Content-Type: application/json
-
-{
-  "title": "Learn TypeScript",
-  "description": "Complete TypeScript tutorial",
-  "completed": false
-}
-```
-
-Response (201):
-```json
-{
-  "success": true,
-  "message": "Todo created successfully",
-  "data": {
-    "id": 1,
-    "title": "Learn TypeScript",
-    "description": "Complete TypeScript tutorial",
-    "completed": false,
-    "createdAt": "2026-03-09T10:00:00.000Z",
-    "updatedAt": "2026-03-09T10:00:00.000Z"
-  }
-}
-```
-
-#### Get All Todos
-```http
-GET /api/todos
-```
-
-Response (200):
-```json
-{
-  "success": true,
-  "message": "Todos retrieved successfully",
-  "data": [...]
-}
-```
-
-#### Update Todo
-```http
-PUT /api/todos/1
-Content-Type: application/json
-
-{
-  "completed": true
-}
-```
-
-#### Delete Todo
-```http
-DELETE /api/todos/1
-```
-
-Response (200):
-```json
-{
-  "success": true,
-  "message": "Todo deleted successfully"
-}
-```
-
 ## Environment Variables
 
 ### Backend (.env)
@@ -261,8 +130,6 @@ DB_PASSWORD=root1234
 PORT=5000
 NODE_ENV=development
 ```
-
-**Note:** Never commit `.env` files to version control. Use `.env.example` as a template.
 
 ## Database Schema
 
@@ -332,21 +199,6 @@ The API uses standard HTTP status codes:
 - `404 Not Found` - Resource not found
 - `500 Internal Server Error` - Server errors
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the ISC License.
-
-## Author
-
-SWE Intern Task Submission
 
 ## Troubleshooting
 
