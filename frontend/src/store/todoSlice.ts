@@ -1,3 +1,4 @@
+//handle all http request 
 import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit';
 import todoService, { type Todo } from '../services/todoService';
 

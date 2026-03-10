@@ -1,125 +1,87 @@
 
 
-### Frontend
-- **React** - UI library
-- **TypeScript** - Type safety
-- **Vite** - Build tool and dev server
-- **Redux Toolkit** - State management
-- **Axios** - HTTP client
+# Todo Application
 
-### Backend
-- **Node.js** - Runtime environment
-- **TypeScript** - Type safety
-- **Express** - Web framework
-- **Sequelize ORM** - Database ORM
-- **MySQL** - Database
+A full-stack todo management application built with React, TypeScript, Express, and MySQL. Features a clean architecture with type-safe APIs, centralized error handling, and containerized deployment.
 
-### DevOps
-- **Docker & Docker Compose** - Containerization
-- **Sequelize CLI** - Database migrations
+## Tech Stack
 
-## Features
+**Frontend**
+- React 19 + TypeScript
+- Redux Toolkit for state management
+- Vite for fast development and optimized builds
+- Axios for HTTP client
 
-- ✅ Create todos
-- ✅ View all todos
-- ✅ Update todos (title, description, completion status)
-- ✅ Delete todos
-- ✅ Request validation
-- ✅ Error handling with proper HTTP status codes
-- ✅ Responsive UI design
-- ✅ TypeScript for type safety
-- ✅ Redux Toolkit for state management
+**Backend**
+- Node.js + Express + TypeScript
+- Sequelize ORM with MySQL
+- Custom validation middleware
+- Centralized error handling with utility functions
 
+**Infrastructure**
+- Docker & Docker Compose
+- MySQL 8.0
+- Environment-based configuration
 
-## Prerequisites
+## Quick Start
 
-- **Node.js** (v18 or higher)
-- **Docker** and **Docker Compose**
-- **npm** or **yarn**
-
-## Setup Instructions
-
-### 1. Clone the Repository
+### Using Docker (Recommended)
 
 ```bash
+# Clone the repository
 git clone <repository-url>
 cd TODO-operation
+
+# Start all services
+docker-compose up --build
 ```
 
-### 2. Backend Setup
+**Access the application:**
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:5000
+- MySQL: localhost:3307
 
-#### Option A: Using Docker (Recommended)
+### Local Development
 
-1. Navigate to the backend directory:
+**Prerequisites:** Node.js 18+, MySQL 8.0, npm/yarn
+
 ```bash
+# Backend setup
 cd backend
-```
-
-2. Copy the environment variables template:
-```bash
-cp .env.example .env
-```
-
-3. Start the services using Docker Compose:
-```bash
-docker compose up
-```
-
-This will:
-- Start a MySQL database container
-- Start the backend Node.js application
-- Run database migrations automatically
-- Expose the backend API on `http://localhost:5000`
-
-#### Option B: Local Setup
-
-1. Navigate to the backend directory:
-```bash
-cd backend
-```
-
-2. Install dependencies:
-```bash
 npm install
-```
+npm run dev
 
-3. Set up MySQL database:
-   - Install MySQL locally
-   - Create a database named `todo_db`
-   - Update `config/config.json` with your database credentials
-
-4. Run migrations:
-```bash
-npx sequelize-cli db:migrate
-```
-
-5. Start the development server:
-```bash
+# Frontend setup (in new terminal)
+cd frontend
+npm install
 npm run dev
 ```
 
-The backend API will be available at `http://localhost:5000`
+## Architecture
 
-### 3. Frontend Setup
-
-1. Navigate to the frontend directory:
-```bash
-cd frontend/todo-frontend
+```
+todo-operation/
+├── backend/
+│   ├── src/
+│   │   ├── controllers/      # Request handlers
+│   │   ├── middleware/        # Validation middleware
+│   │   ├── routes/           # API routes
+│   │   └── utils/            # Response & error handlers
+│   ├── models/               # Sequelize models
+│   ├── migrations/           # Database migrations
+│   └── server.ts             # Express app entry
+├── frontend/
+│   └── src/
+│       ├── components/       # React components
+│       ├── services/         # API service layer
+│       ├── store/            # Redux toolkit store
+│       └── config/           # Environment config
+└── docker-compose.yml
 ```
 
-2. Install dependencies:
-```bash
-npm install
-```
+## Environment Configuration
 
-3. Start the development server:
-```bash
-npm run dev
-```
-
-## Environment Variables
-
-### Backend (.env)
+### Backend `.env`
 
 ```env
 DB_HOST=127.0.0.1
@@ -129,98 +91,168 @@ DB_USER=root
 DB_PASSWORD=root1234
 PORT=5000
 NODE_ENV=development
+FRONTEND_URL=http://localhost:5173
 ```
+
+### Frontend `.env`
+
+```env
+VITE_API_URL=http://localhost:5000/api/todos
+```
+
+### Root `.env` (Docker Compose)
+
+```env
+DB_NAME=todo_db
+DB_USER=root
+DB_PASSWORD=root1234
+```
+
+## API Documentation
+
+### Endpoints
+
+| Method | Endpoint | Description | 
+|--------|----------|-------------|
+| GET | `/api/todos` | Retrieve all todos |
+| GET | `/api/todos/:id` | Retrieve a specific todo |
+| POST | `/api/todos` | Create a new todo |
+| PUT | `/api/todos/:id` | Update a todo |
+| DELETE | `/api/todos/:id` | Delete a todo |
+
+### Request/Response Examples
+
+**Create Todo**
+```bash
+POST /api/todos
+Content-Type: application/json
+
+{
+  "title": "Complete project",
+  "description": "Finish the todo app",
+  "completed": false
+}
+```
+
+**Response**
+```json
+{
+  "success": true,
+  "message": "Todo created successfully",
+  "data": {
+    "id": 1,
+    "title": "Complete project",
+    "description": "Finish the todo app",
+    "completed": false,
+    "createdAt": "2026-03-10T10:00:00.000Z",
+    "updatedAt": "2026-03-10T10:00:00.000Z"
+  }
+}
+```
+
+### Status Codes
+
+- `200` - Success
+- `201` - Created
+- `400` - Validation Error
+- `404` - Not Found
+- `500` - Server Error
 
 ## Database Schema
 
-### Todos Table
+**todos**
 
 | Column | Type | Constraints |
 |--------|------|-------------|
 | id | INTEGER | PRIMARY KEY, AUTO_INCREMENT |
-| title | STRING | NOT NULL |
-| description | STRING | |
+| title | VARCHAR(255) | NOT NULL |
+| description | TEXT | NULLABLE |
 | completed | BOOLEAN | DEFAULT false |
-| createdAt | DATE | NOT NULL |
-| updatedAt | DATE | NOT NULL |
+| createdAt | TIMESTAMP | NOT NULL |
+| updatedAt | TIMESTAMP | NOT NULL |
 
 ## Development
 
-### Running Tests
+### Database Migrations
 
 ```bash
-# Backend
-cd backend
-npm test
+# Run migrations
+npx sequelize-cli db:migrate
 
-# Frontend
-cd frontend/todo-frontend
-npm test
+# Rollback last migration
+npx sequelize-cli db:migrate:undo
+
+# Create new migration
+npx sequelize-cli migration:generate --name migration-name
 ```
 
-### Building for Production
+### Docker Commands
 
 ```bash
-# Backend
-cd backend
-npm run build
+# Start all services
+docker-compose up
 
-# Frontend
-cd frontend/todo-frontend
-npm run build
-```
+# Rebuild and start
+docker-compose up --build
 
-## Docker Commands
-
-```bash
-# Start services
-docker compose up
-
-# Start in detached mode
-docker compose up -d
-
-# Stop services
-docker compose down
+# Run in background
+docker-compose up -d
 
 # View logs
-docker compose logs -f
+docker-compose logs -f [service-name]
 
-# Rebuild containers
-docker compose up --build
+# Stop all services
+docker-compose down
+
+# Stop and remove volumes
+docker-compose down -v
 ```
 
-## HTTP Status Codes
+### Build for Production
 
-The API uses standard HTTP status codes:
+```bash
+# Backend
+cd backend
+npm run build
+npm start
 
-- `200 OK` - Successful GET, PUT, DELETE requests
-- `201 Created` - Successful POST request
-- `400 Bad Request` - Validation errors or malformed requests
-- `404 Not Found` - Resource not found
-- `500 Internal Server Error` - Server errors
+# Frontend
+cd frontend
+npm run build
+npm run preview
+```
 
+## Features
 
-## Troubleshooting
+- ✅ Full CRUD operations for todos
+- ✅ Real-time state management with Redux Toolkit
+- ✅ Type-safe API with TypeScript
+- ✅ Custom validation middleware
+- ✅ Centralized error handling
+- ✅ CORS security configured for specific origin
+- ✅ Environment-based configuration
+- ✅ Docker containerization
+- ✅ Database migrations with Sequelize
+- ✅ Responsive UI design
 
-### Common Issues
+## Project Structure Highlights
 
-1. **Port already in use**
-   - Change the port in `.env` file or stop the service using that port
+### Backend Utilities
 
-2. **Database connection failed**
-   - Ensure MySQL is running
-   - Check database credentials in `config/config.json`
-   - Verify the database exists
+- **Response Handler** (`utils/responsehandler.ts`) - Standardized API responses
+- **Error Handler** (`utils/errorhandler.ts`) - Async error wrapper and global error middleware
+- **Validation Middleware** (`middleware/validation.ts`) - Clean, reusable validation logic
 
-3. **Migration errors**
-   - Drop the database and recreate it
-   - Run migrations again: `npx sequelize-cli db:migrate`
+### Frontend Architecture
 
-4. **Frontend can't connect to backend**
-   - Ensure backend is running on port 5000
-   - Check CORS configuration in `server.ts`
-   - Verify API_URL in `frontend/todo-frontend/src/services/todoService.ts`
+- **Service Layer** - Abstracted API calls with typed responses
+- **Redux Store** - Centralized state with slices
+- **Type Definitions** - Shared interfaces for Todo entities
 
-## Support
+## License
 
-For questions or issues, please open an issue in the GitHub repository or contact via Discord in the #discussions channel.
+MIT
+
+---
+
+**Note:** This is a development setup. For production deployment, ensure proper security configurations, use secure passwords, enable HTTPS, and follow production best practices.

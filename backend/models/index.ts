@@ -1,9 +1,6 @@
 import { Sequelize, DataTypes } from 'sequelize';
 import TodoModel from './todo';
 
-const env = process.env.NODE_ENV || 'development';
-const config = require(__dirname + '/../config/config.json')[env];
-
 interface DB {
   [key: string]: any;
   sequelize: Sequelize;
@@ -13,12 +10,16 @@ interface DB {
 
 const db: DB = {} as DB;
 
-let sequelize: Sequelize;
-if (config.use_env_variable) {
-  sequelize = new Sequelize(process.env[config.use_env_variable] as string, config);
-} else {
-  sequelize = new Sequelize(config.database, config.username, config.password, config);
-}
+const sequelize = new Sequelize(
+  process.env.DB_NAME || 'todo_db',
+  process.env.DB_USER || 'root',
+  process.env.DB_PASSWORD || '',
+  {
+    host: process.env.DB_HOST || '127.0.0.1',
+    port: Number(process.env.DB_PORT) || 3307,
+    dialect: 'mysql'
+  }
+);
 
 db.Todo = TodoModel(sequelize);
 

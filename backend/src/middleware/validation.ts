@@ -1,69 +1,36 @@
 import { Request, Response, NextFunction } from 'express';
+import { sendValidationError } from '../utils/responsehandler';
 
-interface ValidationError {
-  field: string;
-  message: string;
-}
-
-const sendValidationError = (res: Response, errors: ValidationError[]): void => {
-  res.status(400).json({ success: false, message: 'Validation failed', errors });
+const validate = (checks: Array<{ condition: boolean; field: string; message: string }>) => {
+  return checks.filter(check => check.condition).map(({ field, message }) => ({ field, message }));
 };
 
 export const validateCreateTodo = (req: Request, res: Response, next: NextFunction): void => {
-  const errors: ValidationError[] = [];
   const { title, description, completed } = req.body;
 
-  if (!title || typeof title !== 'string' || !title.trim()) {
-    errors.push({ field: 'title', message: 'Title is required' });
-  }
+  const errors = validate([
+    { condition: !title || typeof title !== 'string' || !title.trim(), field: 'title', message: 'Title is required' },
+    { condition: description !== undefined && typeof description !== 'string', field: 'description', message: 'Description must be a string' },
+    { condition: completed !== undefined && typeof completed !== 'boolean', field: 'completed', message: 'Completed must be a boolean' }
+  ]);
 
-  if (description !== undefined && typeof description !== 'string') {
-    errors.push({ field: 'description', message: 'Description must be a string' });
-  }
-
-  if (completed !== undefined && typeof completed !== 'boolean') {
-    errors.push({ field: 'completed', message: 'Completed must be a boolean' });
-  }
-
-  if (errors.length > 0) {
-    sendValidationError(res, errors);
-    return;
-  }
-
-  next();
+  errors.length > 0 ? sendValidationError(res, errors) : next();
 };
 
 export const validateUpdateTodo = (req: Request, res: Response, next: NextFunction): void => {
-  const errors: ValidationError[] = [];
   const { title, description, completed } = req.body;
 
-  if (title !== undefined && (typeof title !== 'string' || !title.trim())) {
-    errors.push({ field: 'title', message: 'Title must be a non-empty string' });
-  }
+  const errors = validate([
+    { condition: title !== undefined && (typeof title !== 'string' || !title.trim()), field: 'title', message: 'Title must be a non-empty string' },
+    { condition: description !== undefined && typeof description !== 'string', field: 'description', message: 'Description must be a string' },
+    { condition: completed !== undefined && typeof completed !== 'boolean', field: 'completed', message: 'Completed must be a boolean' }
+  ]);
 
-  if (description !== undefined && typeof description !== 'string') {
-    errors.push({ field: 'description', message: 'Description must be a string' });
-  }
-
-  if (completed !== undefined && typeof completed !== 'boolean') {
-    errors.push({ field: 'completed', message: 'Completed must be a boolean' });
-  }
-
-  if (errors.length > 0) {
-    sendValidationError(res, errors);
-    return;
-  }
-
-  next();
+  errors.length > 0 ? sendValidationError(res, errors) : next();
 };
 
 export const validateTodoId = (req: Request, res: Response, next: NextFunction): void => {
-  const id = parseInt(req.params.id);
-  
-  if (isNaN(id) || id <= 0) {
-    sendValidationError(res, [{ field: 'id', message: 'Invalid ID' }]);
-    return;
-  }
-
-  next();
+  const id = parseInt(String(req.params.id));
+  const errors = validate([{ condition: isNaN(id) || id <= 0, field: 'id', message: 'Invalid ID' }]);
+  errors.length > 0 ? sendValidationError(res, errors) : next();
 };
