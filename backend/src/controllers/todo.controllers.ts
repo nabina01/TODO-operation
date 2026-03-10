@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import db from '../../models';
-import { sendSuccess, sendError, sendNotFound } from '../utils/responsehandler';
-import { asyncHandler } from '../utils/errorhandler';
+import { sendSuccess } from '../utils/responsehandler';
+import { asyncHandler, TodoNotFoundError } from '../utils/errorhandler';
 
 const { Todo } = db;
 
@@ -18,13 +18,13 @@ export const getTodos = asyncHandler(async (_req: Request, res: Response): Promi
 
 export const getTodoById = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const todo = await Todo.findByPk(Number(req.params.id));
-  if (!todo) return sendNotFound(res, 'Todo not found');
+  if (!todo) throw new TodoNotFoundError();
   sendSuccess(res, todo);
 });
 
 export const updateTodo = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const todo = await Todo.findByPk(Number(req.params.id));
-  if (!todo) return sendNotFound(res, 'Todo not found');
+  if (!todo) throw new TodoNotFoundError();
   
   await todo.update(req.body);
   sendSuccess(res, todo, 'Todo updated successfully');
@@ -32,7 +32,7 @@ export const updateTodo = asyncHandler(async (req: Request, res: Response): Prom
 
 export const deleteTodo = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const todo = await Todo.findByPk(Number(req.params.id));
-  if (!todo) return sendNotFound(res, 'Todo not found');
+  if (!todo) throw new TodoNotFoundError();
   
   await todo.destroy();
   sendSuccess(res, null, 'Todo deleted successfully');

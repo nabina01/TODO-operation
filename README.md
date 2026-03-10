@@ -79,35 +79,6 @@ todo-operation/
 └── docker-compose.yml
 ```
 
-## Environment Configuration
-
-### Backend `.env`
-
-```env
-DB_HOST=127.0.0.1
-DB_PORT=3307
-DB_NAME=todo_db
-DB_USER=root
-DB_PASSWORD=root1234
-PORT=5000
-NODE_ENV=development
-FRONTEND_URL=http://localhost:5173
-```
-
-### Frontend `.env`
-
-```env
-VITE_API_URL=http://localhost:5000/api/todos
-```
-
-### Root `.env` (Docker Compose)
-
-```env
-DB_NAME=todo_db
-DB_USER=root
-DB_PASSWORD=root1234
-```
-
 ## API Documentation
 
 ### Endpoints
