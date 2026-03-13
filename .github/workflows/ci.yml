@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - "**"
+  workflow_dispatch:
 
 jobs:
   backend-ci:
@@ -52,6 +53,40 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+
+  docker-integration-tests:
+    name: Docker - Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Start MySQL container
+        run: docker compose up -d mysql
+
+      - name: Wait for MySQL healthcheck
+        run: |
+          for i in {1..30}; do
+            status=$(docker inspect --format='{{.State.Health.Status}}' todo-mysql)
+            if [ "$status" = "healthy" ]; then
+              echo "MySQL is healthy"
+              exit 0
+            fi
+            echo "Waiting for MySQL..."
+            sleep 5
+          done
+          echo "MySQL did not become healthy in time"
+          docker compose logs mysql
+          exit 1
+
+      - name: Run backend integration tests in Docker
+        run: |
+          docker compose run --rm backend sh -c "npm install && npx sequelize-cli db:migrate && npm run test:integration"
+
+      - name: Docker cleanup
+        if: always()
+        run: docker compose down -v
 
   docker-build-bonus:
     name: Bonus - Docker Build

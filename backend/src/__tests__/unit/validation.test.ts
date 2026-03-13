@@ -21,14 +21,14 @@ describe('Validation Middleware - Unit Tests', () => {
   });
 
   describe('validateCreateTodo - Positive Tests', () => {
-    test('POSITIVE: should pass validation with valid title only', () => {
+    test('should call next when only title is valid', () => {
       mockReq.body = { title: 'Valid Todo' };
       validateCreateTodo(mockReq as Request, mockRes as Response, nextFunction);
       expect(nextFunction).toHaveBeenCalled();
       expect(mockRes.status).not.toHaveBeenCalled();
     });
 
-    test('POSITIVE: should pass validation with all valid fields', () => {
+    test('should call next when all create fields are valid', () => {
       mockReq.body = {
         title: 'Valid Todo',
         description: 'Valid description',
@@ -39,14 +39,14 @@ describe('Validation Middleware - Unit Tests', () => {
       expect(mockRes.status).not.toHaveBeenCalled();
     });
 
-    test('POSITIVE: should pass with title and description only', () => {
+    test('should call next when title and description are valid', () => {
       mockReq.body = { title: 'Todo', description: 'Description' };
       validateCreateTodo(mockReq as Request, mockRes as Response, nextFunction);
       expect(nextFunction).toHaveBeenCalled();
       expect(mockRes.status).not.toHaveBeenCalled();
     });
 
-    test('POSITIVE: should pass with completed as true', () => {
+    test('should call next when completed is true', () => {
       mockReq.body = { title: 'Completed Todo', completed: true };
       validateCreateTodo(mockReq as Request, mockRes as Response, nextFunction);
       expect(nextFunction).toHaveBeenCalled();
@@ -54,79 +54,130 @@ describe('Validation Middleware - Unit Tests', () => {
   });
 
   describe('validateCreateTodo - Negative Tests', () => {
-    test('NEGATIVE: should fail when title is missing', () => {
+    test('should return 400 with errors when title is missing', () => {
       mockReq.body = { description: 'No title' };
       validateCreateTodo(mockReq as Request, mockRes as Response, nextFunction);
       expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: false,
+        message: 'Validation failed',
+        errors: expect.arrayContaining([
+          expect.objectContaining({ field: 'title', message: 'Title is required' })
+        ])
+      }));
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
-    test('NEGATIVE: should fail when title is empty string', () => {
+    test('should return 400 with errors when title is empty string', () => {
       mockReq.body = { title: '' };
       validateCreateTodo(mockReq as Request, mockRes as Response, nextFunction);
       expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: false,
+        message: 'Validation failed'
+      }));
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
-    test('NEGATIVE: should fail when title is only whitespace', () => {
+    test('should return 400 with errors when title is whitespace only', () => {
       mockReq.body = { title: '   ' };
       validateCreateTodo(mockReq as Request, mockRes as Response, nextFunction);
       expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: false,
+        message: 'Validation failed'
+      }));
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
-    test('NEGATIVE: should fail when title is not a string', () => {
+    test('should return 400 with errors when title is not a string', () => {
       mockReq.body = { title: 123 };
       validateCreateTodo(mockReq as Request, mockRes as Response, nextFunction);
       expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: false,
+        message: 'Validation failed'
+      }));
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
-    test('NEGATIVE: should fail when description is not a string', () => {
+    test('should return 400 with errors when description is not a string', () => {
       mockReq.body = { title: 'Valid', description: 123 };
       validateCreateTodo(mockReq as Request, mockRes as Response, nextFunction);
       expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: false,
+        message: 'Validation failed',
+        errors: expect.arrayContaining([
+          expect.objectContaining({ field: 'description', message: 'Description must be a string' })
+        ])
+      }));
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
-    test('NEGATIVE: should fail when completed is not a boolean', () => {
+    test('should return 400 with errors when completed is string', () => {
       mockReq.body = { title: 'Valid', completed: 'true' };
       validateCreateTodo(mockReq as Request, mockRes as Response, nextFunction);
       expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: false,
+        message: 'Validation failed',
+        errors: expect.arrayContaining([
+          expect.objectContaining({ field: 'completed', message: 'Completed must be a boolean' })
+        ])
+      }));
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
-    test('NEGATIVE: should fail when completed is a number', () => {
+    test('should return 400 with errors when completed is number', () => {
       mockReq.body = { title: 'Valid', completed: 1 };
       validateCreateTodo(mockReq as Request, mockRes as Response, nextFunction);
       expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: false,
+        message: 'Validation failed'
+      }));
+      expect(nextFunction).not.toHaveBeenCalled();
+    });
+
+    test('should return 400 when create request body is empty', () => {
+      mockReq.body = {};
+      validateCreateTodo(mockReq as Request, mockRes as Response, nextFunction);
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: false,
+        message: 'Validation failed',
+        errors: expect.arrayContaining([
+          expect.objectContaining({ field: 'title', message: 'Title is required' })
+        ])
+      }));
       expect(nextFunction).not.toHaveBeenCalled();
     });
   });
 
   describe('validateUpdateTodo - Positive Tests', () => {
-    test('POSITIVE: should pass with valid title update', () => {
+    test('should call next for valid title update', () => {
       mockReq.body = { title: 'Updated Title' };
       validateUpdateTodo(mockReq as Request, mockRes as Response, nextFunction);
       expect(nextFunction).toHaveBeenCalled();
       expect(mockRes.status).not.toHaveBeenCalled();
     });
 
-    test('POSITIVE: should pass with valid completed update', () => {
+    test('should call next for valid completed update', () => {
       mockReq.body = { completed: true };
       validateUpdateTodo(mockReq as Request, mockRes as Response, nextFunction);
       expect(nextFunction).toHaveBeenCalled();
       expect(mockRes.status).not.toHaveBeenCalled();
     });
 
-    test('POSITIVE: should pass with empty body (partial update)', () => {
+    test('should call next for empty update body', () => {
       mockReq.body = {};
       validateUpdateTodo(mockReq as Request, mockRes as Response, nextFunction);
       expect(nextFunction).toHaveBeenCalled();
       expect(mockRes.status).not.toHaveBeenCalled();
     });
 
-    test('POSITIVE: should pass with multiple fields update', () => {
+    test('should call next for valid multi-field update', () => {
       mockReq.body = { title: 'New Title', description: 'New Desc', completed: true };
       validateUpdateTodo(mockReq as Request, mockRes as Response, nextFunction);
       expect(nextFunction).toHaveBeenCalled();
@@ -134,36 +185,69 @@ describe('Validation Middleware - Unit Tests', () => {
   });
 
   describe('validateUpdateTodo - Negative Tests', () => {
-    test('NEGATIVE: should fail when title is empty string', () => {
+    test('should return 400 when update title is empty string', () => {
       mockReq.body = { title: '' };
       validateUpdateTodo(mockReq as Request, mockRes as Response, nextFunction);
       expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: false,
+        message: 'Validation failed',
+        errors: expect.arrayContaining([
+          expect.objectContaining({ field: 'title', message: 'Title must be a non-empty string' })
+        ])
+      }));
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
-    test('NEGATIVE: should fail when completed is string', () => {
+    test('should return 400 when update completed is string', () => {
       mockReq.body = { completed: 'false' };
       validateUpdateTodo(mockReq as Request, mockRes as Response, nextFunction);
       expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: false,
+        message: 'Validation failed',
+        errors: expect.arrayContaining([
+          expect.objectContaining({ field: 'completed', message: 'Completed must be a boolean' })
+        ])
+      }));
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
-    test('NEGATIVE: should fail when title is only spaces', () => {
+    test('should return 400 when update title is whitespace only', () => {
       mockReq.body = { title: '     ' };
       validateUpdateTodo(mockReq as Request, mockRes as Response, nextFunction);
       expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: false,
+        message: 'Validation failed'
+      }));
+      expect(nextFunction).not.toHaveBeenCalled();
+    });
+
+    test('should return 400 when update description is not a string', () => {
+      mockReq.body = { description: 777 };
+      validateUpdateTodo(mockReq as Request, mockRes as Response, nextFunction);
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: false,
+        message: 'Validation failed',
+        errors: expect.arrayContaining([
+          expect.objectContaining({ field: 'description', message: 'Description must be a string' })
+        ])
+      }));
+      expect(nextFunction).not.toHaveBeenCalled();
     });
   });
 
   describe('validateTodoId - Positive Tests', () => {
-    test('POSITIVE: should pass with valid numeric ID', () => {
+    test('should call next for valid numeric ID', () => {
       mockReq.params = { id: '1' };
       validateTodoId(mockReq as Request, mockRes as Response, nextFunction);
       expect(nextFunction).toHaveBeenCalled();
       expect(mockRes.status).not.toHaveBeenCalled();
     });
 
-    test('POSITIVE: should pass with large valid ID', () => {
+    test('should call next for large valid ID', () => {
       mockReq.params = { id: '99999' };
       validateTodoId(mockReq as Request, mockRes as Response, nextFunction);
       expect(nextFunction).toHaveBeenCalled();
@@ -172,24 +256,53 @@ describe('Validation Middleware - Unit Tests', () => {
   });
 
   describe('validateTodoId - Negative Tests', () => {
-    test('NEGATIVE: should fail with non-numeric ID', () => {
+    test('should return 400 when ID is non-numeric', () => {
       mockReq.params = { id: 'abc' };
       validateTodoId(mockReq as Request, mockRes as Response, nextFunction);
       expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: false,
+        message: 'Validation failed',
+        errors: expect.arrayContaining([
+          expect.objectContaining({ field: 'id', message: 'Invalid ID' })
+        ])
+      }));
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
-    test('NEGATIVE: should fail with zero ID', () => {
+    test('should return 400 when ID is zero', () => {
       mockReq.params = { id: '0' };
       validateTodoId(mockReq as Request, mockRes as Response, nextFunction);
       expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: false,
+        message: 'Validation failed'
+      }));
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
-    test('NEGATIVE: should fail with negative ID', () => {
+    test('should return 400 when ID is negative', () => {
       mockReq.params = { id: '-5' };
       validateTodoId(mockReq as Request, mockRes as Response, nextFunction);
       expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: false,
+        message: 'Validation failed'
+      }));
+      expect(nextFunction).not.toHaveBeenCalled();
+    });
+
+    test('should return 400 when ID is missing', () => {
+      mockReq.params = {};
+      validateTodoId(mockReq as Request, mockRes as Response, nextFunction);
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: false,
+        message: 'Validation failed',
+        errors: expect.arrayContaining([
+          expect.objectContaining({ field: 'id', message: 'Invalid ID' })
+        ])
+      }));
       expect(nextFunction).not.toHaveBeenCalled();
     });
   });
