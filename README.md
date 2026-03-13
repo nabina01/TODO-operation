@@ -206,3 +206,37 @@ npm run preview
 - ✅ Database migrations with Sequelize
 - ✅ Responsive UI design
 
+## CI/CD Pipeline (GitHub Actions)
+
+This project uses GitHub Actions to run Continuous Integration checks automatically when code is pushed.
+
+### Workflow Trigger
+
+- Runs on every push to any branch
+
+### Pipeline Jobs
+
+1. Backend - Test and Build
+- Installs backend dependencies
+- Runs backend unit tests (`npm run test:unit`)
+- Builds backend TypeScript (`npm run build`)
+
+2. Frontend - Build
+- Installs frontend dependencies
+- Builds frontend app (`npm run build`)
+
+3. Bonus - Docker Build
+- Optional job for Docker image build
+- Runs only on manual workflow dispatch
+
+### Why this pipeline is useful
+
+- Detects failures quickly after each push
+- Ensures tests pass before code is considered healthy
+- Verifies that both backend and frontend build successfully
+- Prevents broken code from moving forward because failed tests/builds fail the pipeline
+
+### Workflow file
+
+- `.github/workflows/ci.yml`
+
