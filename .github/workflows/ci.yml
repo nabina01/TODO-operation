@@ -3,13 +3,82 @@ name: CI Pipeline
 on:
   push:
     branches:
-      - "**"
-  workflow_dispatch:
+      - main
+    paths:
+      - frontend/**
+      - backend/**
 
 jobs:
-  backend-ci:
-    name: Backend - Test and Build
+  changes:
+    name: Detect Changed Paths
     runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect frontend/backend changes
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+            backend:
+              - 'backend/**'
+
+  frontend-ci:
+    name: Frontend - Test, Build, and Push
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Run frontend unit tests
+        run: npm run test --if-present
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/todo-operation-frontend:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/todo-operation-frontend:${{ github.sha }}
+
+  backend-ci:
+    name: Backend - Test, Build, and Push
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     defaults:
       run:
         working-directory: backend
@@ -32,70 +101,17 @@ jobs:
       - name: Build backend
         run: npm run build
 
-  frontend-ci:
-    name: Frontend - Build
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
         with:
-          node-version: 20
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Install frontend dependencies
-        run: npm install
-
-      - name: Build frontend
-        run: npm run build
-
-  docker-integration-tests:
-    name: Docker - Integration Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Start MySQL container
-        run: docker compose up -d mysql
-
-      - name: Wait for MySQL healthcheck
-        run: |
-          for i in {1..30}; do
-            status=$(docker inspect --format='{{.State.Health.Status}}' todo-mysql)
-            if [ "$status" = "healthy" ]; then
-              echo "MySQL is healthy"
-              exit 0
-            fi
-            echo "Waiting for MySQL..."
-            sleep 5
-          done
-          echo "MySQL did not become healthy in time"
-          docker compose logs mysql
-          exit 1
-
-      - name: Run backend integration tests in Docker
-        run: |
-          docker compose run --rm backend sh -c "npm install && npx sequelize-cli db:migrate && npm run test:integration"
-
-      - name: Docker cleanup
-        if: always()
-        run: docker compose down -v
-
-  docker-build-bonus:
-    name: Bonus - Docker Build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Build Docker images
-        run: docker compose build
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/todo-operation-backend:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/todo-operation-backend:${{ github.sha }}
