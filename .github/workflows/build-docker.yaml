@@ -6,12 +6,22 @@ jobs:
   publish_images:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout 
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: build image
-        run: docker build ./api/ -t nabeena/todo:latest
+        run: docker build ./backend/ -t nabeena/todo:latest
 
       - name: push image to docker hub
-        run:
-          docker push nabeena/todo:latest
+        run: |
+          for i in 1 2 3; do
+            docker push nabeena/todo:latest && break
+            echo "Push failed, retrying in 10s... ($i/3)"
+            sleep 10
+          done

@@ -6,3 +6,11 @@ dist
 .gitignore
 README.md
 *.log
+coverage
+dumps
+.vscode
+.idea
+*.md
+Dockerfile*
+scripts
+src/__tests__
