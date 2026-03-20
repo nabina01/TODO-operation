@@ -4,9 +4,11 @@
   "description": "Todo Application Backend API",
   "main": "server.ts",
   "scripts": {
-    "dev": "nodemon server.ts",
+    "dev": "nodemon --exec ts-node server.ts",
+    "worker:dev": "nodemon --exec ts-node src/workers/todo.worker.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "worker": "node dist/src/workers/todo.worker.js",
     "migrate": "sequelize-cli db:migrate",
     "migrate:undo": "sequelize-cli db:migrate:undo",
     "migrate:status": "sequelize-cli db:migrate:status",
@@ -29,9 +31,13 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@bull-board/api": "^6.20.6",
+    "@bull-board/express": "^6.20.6",
+    "bullmq": "^5.71.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "ioredis": "^5.10.1",
     "mysql2": "^3.19.0",
     "sequelize": "^6.37.8"
   },

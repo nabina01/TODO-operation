@@ -845,3 +845,108 @@ This project uses GitHub Actions to run Continuous Integration checks automatica
 
 - `.github/workflows/ci.yml`
 
+## Task 5: BullMQ Message Queue Integration
+
+This project now includes asynchronous processing with BullMQ + Redis for background task execution when a new Todo is created.
+
+### What was integrated
+
+- BullMQ queue named `taskQueue`
+- Redis-backed job storage and delivery
+- Background worker that processes jobs asynchronously
+- Retries with exponential backoff (`attempts: 3`)
+- Optional delayed jobs
+- Job lifecycle logging for completed and failed states
+- Optional Bull Board dashboard at `http://localhost:5000/admin/queues`
+
+### Queue flow in this project
+
+1. Client calls `POST /api/todos`.
+2. Backend creates the Todo in MySQL.
+3. Backend immediately returns API success response.
+4. Backend enqueues a `todo-created` job in `taskQueue`.
+5. Worker consumes and processes job in the background.
+
+### How jobs are simulated
+
+- Successful background task:
+  - Create normal title, example: `Buy groceries`
+- Delayed job:
+  - Include `[delay]` in title, example: `[delay] Send follow-up`
+- Failed job with retries:
+  - Include `[fail]` in title, example: `[fail] Trigger retry demo`
+
+### New backend files
+
+- `backend/src/queues/todo.queue.ts`
+  - Queue configuration
+  - Producer (`enqueueTodoCreatedJob`)
+  - Queue events logging
+  - Bull Board registration
+- `backend/src/workers/todo.worker.ts`
+  - Worker processor and retry/failure behavior
+
+### New backend scripts
+
+- `npm run worker:dev` - starts worker in development mode
+- `npm run worker` - starts compiled worker in production mode
+
+### Environment variables for queue
+
+Add these in `backend/.env`:
+
+```env
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_PASSWORD=
+QUEUE_ENABLED=true
+WORKER_CONCURRENCY=5
+TODO_JOB_DELAY_MS=5000
+```
+
+### Running locally
+
+1. Start Redis
+```bash
+docker run --name todo-redis -p 6379:6379 redis:7-alpine
+```
+
+2. Start backend API
+```bash
+cd backend
+npm run dev
+```
+
+3. Start worker (new terminal)
+```bash
+cd backend
+npm run worker:dev
+```
+
+4. Test queue quickly
+```bash
+curl -X POST http://localhost:5000/api/todos \
+  -H "Content-Type: application/json" \
+  -d '{"title":"[fail] retry check","description":"Queue demo"}'
+```
+
+### Running with Docker Compose
+
+The compose stack now includes:
+- `mysql`
+- `redis`
+- `backend`
+- `worker`
+- `frontend`
+
+Notes:
+- `backend` runs compiled output via `npm start`
+- `worker` runs compiled output via `npm run worker`
+- This avoids dev-only runtime dependencies in containers (like `nodemon`/`ts-node`)
+
+Start all services:
+
+```bash
+docker-compose up --build
+```
+

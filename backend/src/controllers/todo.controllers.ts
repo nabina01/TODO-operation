@@ -2,12 +2,22 @@ import { Request, Response } from 'express';
 import db from '../../models';
 import { sendSuccess } from '../utils/responsehandler';
 import { asyncHandler, TodoNotFoundError } from '../utils/errorhandler';
+import { enqueueTodoCreatedJob } from '../queues/todo.queue';
 
 const { Todo } = db;
 
 export const createTodo = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { title, description, completed } = req.body;
   const todo = await Todo.create({ title, description, completed });
+
+  // Queue processing is intentionally detached so API response remains fast.
+  void enqueueTodoCreatedJob({
+    id: todo.id,
+    title: todo.title,
+    description: todo.description,
+    completed: todo.completed
+  });
+
   sendSuccess(res, todo, 'Todo created successfully', 201);
 });
 

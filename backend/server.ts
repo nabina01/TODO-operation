@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from 'dotenv';
 import todoRoutes from "./src/routes/todo.routes";
 import { errorHandler } from "./src/utils/errorhandler";
+import { registerQueueDashboard, registerQueueEvents } from './src/queues/todo.queue';
 
 dotenv.config();
 
@@ -14,6 +15,9 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+registerQueueDashboard(app);
+registerQueueEvents();
 
 app.get("/", (req, res) => res.json({ message: "Todo API is running" }));
 app.use('/api/todos', todoRoutes);
