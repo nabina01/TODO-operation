@@ -1,0 +1,112 @@
+import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const app = express();
+const PORT = process.env.USER_SERVICE_PORT || 5001;
+
+app.use(
+  cors({
+    origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+    credentials: true,
+  })
+);
+app.use(express.json());
+
+// Logging middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  console.log(`[User Service] ${req.method} ${req.path}`);
+  next();
+});
+
+// ✅ Param type
+interface IdParams {
+  id: string;
+}
+
+// Health check
+app.get('/health', (req: Request, res: Response) => {
+  res.json({ status: 'ok', service: 'user-service' });
+});
+
+// Get user by ID
+app.get('/users/:id', (req: Request<IdParams>, res: Response) => {
+  const id = req.params.id;
+
+  const users: Record<string, any> = {
+    '1': { id: 1, name: 'John Doe', email: 'john@example.com', createdAt: new Date() },
+    '2': { id: 2, name: 'Jane Smith', email: 'jane@example.com', createdAt: new Date() }
+  };
+
+  const user = users[id]; // ✅ now valid
+
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  res.json(user);
+});
+
+// Get all users
+app.get('/users', (req: Request, res: Response) => {
+  const users = [
+    { id: 1, name: 'John Doe', email: 'john@example.com', createdAt: new Date() },
+    { id: 2, name: 'Jane Smith', email: 'jane@example.com', createdAt: new Date() }
+  ];
+  res.json(users);
+});
+
+// Create user
+app.post('/users', (req: Request, res: Response) => {
+  const { name, email } = req.body;
+
+  if (!name || !email) {
+    return res.status(400).json({ error: 'Name and email are required' });
+  }
+
+  const newUser = {
+    id: Math.floor(Math.random() * 10000),
+    name,
+    email,
+    createdAt: new Date()
+  };
+
+  console.log('[User Service] User created:', newUser);
+  res.status(201).json(newUser);
+});
+
+// Update user
+app.put('/users/:id', (req: Request<IdParams>, res: Response) => {
+  const id = parseInt(req.params.id);
+  const { name, email } = req.body;
+
+  const updatedUser = {
+    id,
+    name: name || 'Unknown',
+    email: email || 'unknown@example.com',
+    updatedAt: new Date()
+  };
+
+  console.log('[User Service] User updated:', updatedUser);
+  res.json(updatedUser);
+});
+
+// Delete user
+app.delete('/users/:id', (req: Request<IdParams>, res: Response) => {
+  const id = req.params.id;
+
+  console.log('[User Service] User deleted:', id);
+  res.json({ message: `User ${id} deleted successfully` });
+});
+
+// Error handler
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  console.error('[User Service] Error:', err.message);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+app.listen(PORT, () => {
+  console.log(`User Service running on port ${PORT}`);
+});

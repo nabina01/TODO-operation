@@ -18,16 +18,81 @@ services:
     image: redis:7-alpine
     container_name: todo-redis
     ports:
-      - "6379:6379"
+      - "6380:6379"   
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
+  
+  # Microservices Architecture
+
+  api-gateway:
+    build: 
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    ports:
+      - "5000:5000"
+    depends_on:
+      - user-service
+      - todo-service
+      - notification-service
+    environment:
+      - GATEWAY_PORT=5000
+      - USER_SERVICE_URL=http://user-service:5001
+      - TODO_SERVICE_URL=http://todo-service:5002
+      - NOTIFICATION_SERVICE_URL=http://notification-service:5003
+      - ALLOWED_ORIGINS=http://localhost:5173,http://frontend
+      - NODE_ENV=docker
+    command: sh -c "npm install && npm start"
+
+  user-service:
+    build: 
+      context: ./services/user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    ports:
+      - "5001:5001"
+    environment:
+      - USER_SERVICE_PORT=5001
+      - ALLOWED_ORIGINS=http://localhost:5000,http://api-gateway
+      - NODE_ENV=docker
+    command: sh -c "npm install && npm start"
+
+  todo-service:
+    build: 
+      context: ./services/todo-service
+      dockerfile: Dockerfile
+    container_name: todo-service
+    ports:
+      - "5002:5002"
+    depends_on:
+      - notification-service
+    environment:
+      - TODO_SERVICE_PORT=5002
+      - NOTIFICATION_SERVICE_URL=http://notification-service:5003
+      - ALLOWED_ORIGINS=http://localhost:5000,http://api-gateway
+      - NODE_ENV=docker
+    command: sh -c "npm install && npm start"
+
+  notification-service:
+    build: 
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    ports:
+      - "5003:5003"
+    environment:
+      - NOTIFICATION_SERVICE_PORT=5003
+      - ALLOWED_ORIGINS=http://localhost:5000,http://api-gateway
+      - NODE_ENV=docker
+    command: sh -c "npm install && npm start"
+
 
   backend:
     build: ./backend
     container_name: todo-backend
     ports:
-      - "5000:5000"
+      - "5004:5000"
     depends_on:
       mysql:
         condition: service_healthy
