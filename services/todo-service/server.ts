@@ -2,20 +2,19 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
+import { messageQueue } from '../shared/message-queue';
+import { authMiddleware } from '../shared/auth';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.TODO_SERVICE_PORT || 5002;
-const NOTIFICATION_SERVICE_URL =
-  process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:5003';
+const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:5003';
 
-app.use(
-  cors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
-    credentials: true,
-  })
-);
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+  credentials: true
+}));
 app.use(express.json());
 
 // Middleware for request logging
@@ -24,7 +23,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// ---- Types ----
+// In-memory todo storage (in production, use database)
 interface Todo {
   id: number;
   title: string;
@@ -35,30 +34,61 @@ interface Todo {
   updatedAt: Date;
 }
 
-// ✅ Type for route params
-interface IdParams {
-  id: string;
-}
-
-// ---- In-memory storage ----
 let todos: Todo[] = [];
 let todoIdCounter = 1;
 
-// Health check
+// Health check endpoint
 app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', service: 'todo-service' });
 });
 
+// Initialize message queue
+const initializeQueue = async () => {
+  try {
+    await messageQueue.connect();
+    
+    // Create and register todo-created queue handler
+    messageQueue.registerHandler('todo-created', async (job) => {
+      // Fix: handle possible missing 'data' property on QueueMessage
+      const payload = (job as any).data?.payload || (job as any).payload;
+      const { title, userId, todoId } = payload;
+      console.log(`[Todo Service] Processing todo-created queue: ${title} for user ${userId}`);
+      // Send notification asynchronously
+      try {
+        await axios.post(`${NOTIFICATION_SERVICE_URL}/notifications`, {
+          type: 'todo-created',
+          message: `New todo created: "${title}"`,
+          userId,
+          todoId
+        }, { timeout: 3000 });
+        console.log('[Todo Service] Notification sent via queue');
+      } catch (error) {
+        console.warn('[Todo Service] Failed to send notification:', (error as Error).message);
+      }
+    });
+    
+    console.log('[Todo Service] Message queue initialized');
+  } catch (error) {
+    console.warn('[Todo Service] Message queue not available:', (error as Error).message);
+    console.warn('[Todo Service] Continuing without queue support');
+  }
+};
+
+// Initialize queue on startup
+initializeQueue();
+
 // Get all todos
 app.get('/todos', (req: Request, res: Response) => {
+  console.log(`[Todo Service] Retrieved ${todos.length} todos`);
   res.json(todos);
 });
 
 // Get todo by ID
-app.get('/todos/:id', (req: Request<IdParams>, res: Response) => {
-  const id = parseInt(req.params.id);
+app.get('/todos/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const todoId = Array.isArray(id) ? id[0] : id;
+  const todo = todos.find(t => t.id === parseInt(todoId));
 
-  const todo = todos.find((t) => t.id === id);
   if (!todo) {
     return res.status(404).json({ error: 'Todo not found' });
   }
@@ -82,99 +112,140 @@ app.post('/todos', async (req: Request, res: Response) => {
       completed: false,
       userId,
       createdAt: new Date(),
-      updatedAt: new Date(),
+      updatedAt: new Date()
     };
 
     todos.push(newTodo);
+    console.log('[Todo Service] Todo created:', newTodo);
 
-    // Notify service
-    axios
-      .post(`${NOTIFICATION_SERVICE_URL}/notifications`, {
+    // Publish to message queue (asynchronous, fire-and-forget)
+    try {
+      await messageQueue.publish('todo-created', {
         type: 'todo-created',
-        message: `New todo created: "${title}"`,
-        todoId: newTodo.id,
-        userId: newTodo.userId,
-      })
-      .catch((err) =>
-        console.warn('[Todo Service] Notification failed:', err.message)
-      );
+        payload: {
+          title,
+          userId,
+          todoId: newTodo.id
+        },
+        timestamp: new Date()
+      }, {
+        delay: 1000, // Process after 1 second
+        priority: 'normal'
+      });
+      console.log('[Todo Service] Todo-created event published to queue');
+    } catch (queueError) {
+      console.warn('[Todo Service] Failed to publish to queue, falling back to direct notification');
+      // Fallback: Trigger notification service directly if queue fails
+      try {
+        await axios.post(`${NOTIFICATION_SERVICE_URL}/notifications`, {
+          type: 'todo-created',
+          message: `New todo created: "${title}" by user ${userId}`,
+          todoId: newTodo.id,
+          userId: newTodo.userId
+        }, {
+          timeout: 5000
+        }).catch((err) => {
+          console.warn('[Todo Service] Failed to notify notification service:', err.message);
+        });
+      } catch (notifyError) {
+        console.warn('[Todo Service] Notification service unreachable, continuing anyway');
+      }
+    }
 
     res.status(201).json(newTodo);
   } catch (error: any) {
+    console.error('[Todo Service] Error creating todo:', error.message);
     res.status(500).json({ error: 'Failed to create todo' });
   }
 });
 
 // Update todo
-app.put('/todos/:id', async (req: Request<IdParams>, res: Response) => {
+app.put('/todos/:id', async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const { id } = req.params;
+    const todoId = Array.isArray(id) ? id[0] : id;
+    const todo = todos.find(t => t.id === parseInt(todoId));
 
-    const todo = todos.find((t) => t.id === id);
     if (!todo) {
       return res.status(404).json({ error: 'Todo not found' });
     }
 
     const { title, description, completed } = req.body;
-
-    if (title) todo.title = title;
-    if (description) todo.description = description;
-    if (completed !== undefined) todo.completed = completed;
-
+    todo.title = title || todo.title;
+    todo.description = description || todo.description;
+    todo.completed = completed !== undefined ? completed : todo.completed;
     todo.updatedAt = new Date();
 
-    axios
-      .post(`${NOTIFICATION_SERVICE_URL}/notifications`, {
+    console.log('[Todo Service] Todo updated:', todo);
+
+    // Notify notification service
+    try {
+      await axios.post(`${NOTIFICATION_SERVICE_URL}/notifications`, {
         type: 'todo-updated',
         message: `Todo updated: "${todo.title}"`,
         todoId: todo.id,
         userId: todo.userId,
-      })
-      .catch((err) =>
-        console.warn('[Todo Service] Notification failed:', err.message)
-      );
+        completed: todo.completed
+      }, {
+        timeout: 5000
+      }).catch((err) => {
+        console.warn('[Todo Service] Failed to notify notification service:', err.message);
+      });
+    } catch (notifyError) {
+      console.warn('[Todo Service] Notification service unreachable');
+    }
 
     res.json(todo);
   } catch (error: any) {
+    console.error('[Todo Service] Error updating todo:', error.message);
     res.status(500).json({ error: 'Failed to update todo' });
   }
 });
 
 // Delete todo
-app.delete('/todos/:id', async (req: Request<IdParams>, res: Response) => {
+app.delete('/todos/:id', async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const { id } = req.params;
+    const todoId = Array.isArray(id) ? id[0] : id;
+    const todoIndex = todos.findIndex(t => t.id === parseInt(todoId));
 
-    const index = todos.findIndex((t) => t.id === id);
-    if (index === -1) {
+    if (todoIndex === -1) {
       return res.status(404).json({ error: 'Todo not found' });
     }
 
-    const deletedTodo = todos.splice(index, 1)[0];
+    const deletedTodo = todos.splice(todoIndex, 1)[0];
+    console.log('[Todo Service] Todo deleted:', deletedTodo);
 
-    axios
-      .post(`${NOTIFICATION_SERVICE_URL}/notifications`, {
+    // Notify notification service
+    try {
+      await axios.post(`${NOTIFICATION_SERVICE_URL}/notifications`, {
         type: 'todo-deleted',
         message: `Todo deleted: "${deletedTodo.title}"`,
         todoId: deletedTodo.id,
-        userId: deletedTodo.userId,
-      })
-      .catch((err) =>
-        console.warn('[Todo Service] Notification failed:', err.message)
-      );
+        userId: deletedTodo.userId
+      }, {
+        timeout: 5000
+      }).catch((err) => {
+        console.warn('[Todo Service] Failed to notify notification service:', err.message);
+      });
+    } catch (notifyError) {
+      console.warn('[Todo Service] Notification service unreachable');
+    }
 
-    res.json({ message: 'Todo deleted successfully' });
+    res.json({ message: `Todo ${id} deleted successfully` });
   } catch (error: any) {
+    console.error('[Todo Service] Error deleting todo:', error.message);
     res.status(500).json({ error: 'Failed to delete todo' });
   }
 });
 
-// Error handler
+// Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  console.error(err.message);
+  console.error('[Todo Service] Error:', err.message);
   res.status(500).json({ error: 'Internal server error' });
 });
 
 app.listen(PORT, () => {
   console.log(`Todo Service running on port ${PORT}`);
+  console.log(`Notification Service URL: ${NOTIFICATION_SERVICE_URL}`);
 });

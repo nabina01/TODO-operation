@@ -1,5 +1,4 @@
 import { Queue, Worker, Job, JobsOptions } from 'bullmq';
-import IORedis from 'ioredis';
 
 export interface QueueMessage {
   type: string;
@@ -13,13 +12,14 @@ export interface QueueHandler {
   (message: QueueMessage): Promise<void>;
 }
 
-const redisConnection = new IORedis({
+
+const redisConnectionOptions = {
   host: process.env.REDIS_HOST || '127.0.0.1',
   port: Number(process.env.REDIS_PORT) || 6379,
-  maxRetriesPerRequest: null,
+  maxRetriesPerRequest: null as any,
   enableReadyCheck: false,
   retryStrategy: (times: number) => Math.min(times * 50, 2000),
-});
+};
 
 class ServiceMessageQueue {
   private queues = new Map<string, Queue>();
@@ -28,8 +28,11 @@ class ServiceMessageQueue {
   private isConnected = false;
 
   public async connect(): Promise<void> {
+    // Test connection using BullMQ's Queue
     try {
-      await redisConnection.ping();
+      const testQueue = new Queue('test-connection', { connection: redisConnectionOptions });
+      await testQueue.waitUntilReady();
+      await testQueue.close();
       this.isConnected = true;
       console.log('[MessageQueue] Connected to Redis');
     } catch (error) {
@@ -42,7 +45,7 @@ class ServiceMessageQueue {
     if (this.queues.has(queueName)) return this.queues.get(queueName)!;
 
     const queue = new Queue(queueName, {
-      connection: redisConnection, 
+      connection: redisConnectionOptions,
       defaultJobOptions: {
         attempts: 3,
         backoff: { type: 'exponential', delay: 2000 },
@@ -67,7 +70,7 @@ class ServiceMessageQueue {
         await handler(job.data);
       },
       {
-        connection: redisConnection, 
+        connection: redisConnectionOptions,
         concurrency,
       }
     );
@@ -92,7 +95,8 @@ class ServiceMessageQueue {
   public async publish(
     queueName: string,
     message: QueueMessage,
-    options?: { delay?: number; priority?: 'low' | 'normal' | 'high' }
+    options?: { delay?: number;
+     priority?: 'low' | 'normal' | 'high' }
   ): Promise<void> {
     const queue = this.createQueue(queueName);
 
@@ -142,7 +146,6 @@ class ServiceMessageQueue {
       console.log(`[MessageQueue] Queue closed: ${name}`);
     }
 
-    await redisConnection.quit();
     this.isConnected = false;
     console.log('[MessageQueue] Redis connection closed');
   }

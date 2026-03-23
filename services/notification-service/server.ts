@@ -7,21 +7,19 @@ dotenv.config();
 const app = express();
 const PORT = process.env.NOTIFICATION_SERVICE_PORT || 5003;
 
-app.use(
-  cors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
-    credentials: true,
-  })
-);
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+  credentials: true
+}));
 app.use(express.json());
 
-// Logging middleware
+// Middleware for request logging
 app.use((req: Request, res: Response, next: NextFunction) => {
   console.log(`[Notification Service] ${req.method} ${req.path}`);
   next();
 });
 
-// ---- Types ----
+// In-memory notification storage
 interface Notification {
   id: number;
   type: string;
@@ -33,38 +31,26 @@ interface Notification {
   sentAt?: Date;
 }
 
-// ✅ Param types
-interface IdParams {
-  id: string;
-}
-
-interface UserParams {
-  userId: string;
-}
-
-interface StatusParams {
-  status: string;
-}
-
-// ---- Storage ----
 let notifications: Notification[] = [];
 let notificationIdCounter = 1;
 
-// Health check
+// Health check endpoint
 app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', service: 'notification-service' });
 });
 
 // Get all notifications
 app.get('/notifications', (req: Request, res: Response) => {
+  console.log(`[Notification Service] Retrieved ${notifications.length} notifications`);
   res.json(notifications);
 });
 
 // Get notification by ID
-app.get('/notifications/:id', (req: Request<IdParams>, res: Response) => {
-  const id = parseInt(req.params.id);
+app.get('/notifications/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const notificationId = Array.isArray(id) ? id[0] : id;
+  const notification = notifications.find(n => n.id === parseInt(notificationId));
 
-  const notification = notifications.find((n) => n.id === id);
   if (!notification) {
     return res.status(404).json({ error: 'Notification not found' });
   }
@@ -72,7 +58,7 @@ app.get('/notifications/:id', (req: Request<IdParams>, res: Response) => {
   res.json(notification);
 });
 
-// Create notification
+// Create notification (called by other services)
 app.post('/notifications', async (req: Request, res: Response) => {
   try {
     const { type, message, todoId, userId } = req.body;
@@ -88,94 +74,113 @@ app.post('/notifications', async (req: Request, res: Response) => {
       todoId,
       userId,
       status: 'pending',
-      createdAt: new Date(),
+      createdAt: new Date()
     };
 
+    console.log(`[Notification Service] Processing ${type} notification for user ${userId}`);
+
+    // Simulate sending notification (fake email, SMS, push, etc.)
     try {
       await sendNotification(newNotification);
       newNotification.status = 'sent';
       newNotification.sentAt = new Date();
-    } catch (err: any) {
+      console.log(`[Notification Service] Notification sent: ${newNotification.message}`);
+    } catch (sendError: any) {
       newNotification.status = 'failed';
-      console.error(err.message);
+      console.error(`[Notification Service] Failed to send notification:`, sendError.message);
     }
 
     notifications.push(newNotification);
+
+    // Return quickly to caller
     res.status(201).json(newNotification);
   } catch (error: any) {
+    console.error('[Notification Service] Error creating notification:', error.message);
     res.status(500).json({ error: 'Failed to create notification' });
   }
 });
 
-// Retry notification
-app.post('/notifications/:id/retry', async (req: Request<IdParams>, res: Response) => {
+// Retry failed notification
+app.post('/notifications/:id/retry', async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const { id } = req.params;
+    const notificationId = Array.isArray(id) ? id[0] : id;
+    const notification = notifications.find(n => n.id === parseInt(notificationId));
 
-    const notification = notifications.find((n) => n.id === id);
     if (!notification) {
       return res.status(404).json({ error: 'Notification not found' });
     }
+
+    console.log(`[Notification Service] Retrying notification ${id}`);
 
     try {
       await sendNotification(notification);
       notification.status = 'sent';
       notification.sentAt = new Date();
-    } catch (err: any) {
+      console.log(`[Notification Service] Notification sent on retry: ${notification.message}`);
+    } catch (sendError: any) {
       notification.status = 'failed';
+      console.error(`[Notification Service] Failed to send notification on retry:`, sendError.message);
     }
 
     res.json(notification);
-  } catch {
+  } catch (error: any) {
+    console.error('[Notification Service] Error retrying notification:', error.message);
     res.status(500).json({ error: 'Failed to retry notification' });
   }
 });
 
-// Get notifications by user
-app.get('/notifications/user/:userId', (req: Request<UserParams>, res: Response) => {
-  const userId = parseInt(req.params.userId);
-
-  const userNotifications = notifications.filter(
-    (n) => n.userId === userId
-  );
-
+// Get notifications by user ID
+app.get('/notifications/user/:userId', (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const userIdNum = Array.isArray(userId) ? userId[0] : userId;
+  const userNotifications = notifications.filter(n => n.userId === parseInt(userIdNum));
+  console.log(`[Notification Service] Retrieved ${userNotifications.length} notifications for user ${userId}`);
   res.json(userNotifications);
 });
 
 // Get notifications by status
-app.get('/notifications/status/:status', (req: Request<StatusParams>, res: Response) => {
+app.get('/notifications/status/:status', (req: Request, res: Response) => {
   const { status } = req.params;
-
-  const result = notifications.filter((n) => n.status === status);
-  res.json(result);
+  const statusNotifications = notifications.filter(n => n.status === status);
+  console.log(`[Notification Service] Retrieved ${statusNotifications.length} ${status} notifications`);
+  res.json(statusNotifications);
 });
 
 // Delete notification
-app.delete('/notifications/:id', (req: Request<IdParams>, res: Response) => {
-  const id = parseInt(req.params.id);
+app.delete('/notifications/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const notificationId = Array.isArray(id) ? id[0] : id;
+  const index = notifications.findIndex(n => n.id === parseInt(notificationId));
 
-  const index = notifications.findIndex((n) => n.id === id);
   if (index === -1) {
     return res.status(404).json({ error: 'Notification not found' });
   }
 
-  notifications.splice(index, 1);
-  res.json({ message: 'Notification deleted successfully' });
+  const deleted = notifications.splice(index, 1)[0];
+  console.log('[Notification Service] Notification deleted:', deleted);
+  res.json({ message: `Notification ${id} deleted successfully` });
 });
 
-// Simulate sending
+// Helper function to simulate sending notification
 async function sendNotification(notification: Notification): Promise<void> {
   return new Promise((resolve, reject) => {
+    // Simulate processing time
     setTimeout(() => {
-      if (Math.random() < 0.9) resolve();
-      else reject(new Error('Random failure'));
+      // 90% success rate for demo purposes
+      if (Math.random() < 0.9) {
+        console.log(`[Notification Service] Sending ${notification.type} to user ${notification.userId}:`, notification.message);
+        resolve();
+      } else {
+        reject(new Error('Random notification failure for demo'));
+      }
     }, 100);
   });
 }
 
-// Error handler
+// Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  console.error(err.message);
+  console.error('[Notification Service] Error:', err.message);
   res.status(500).json({ error: 'Internal server error' });
 });
 

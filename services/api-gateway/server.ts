@@ -3,6 +3,11 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import axios, { AxiosError } from 'axios';
 import morgan from 'morgan';
+import jwt from 'jsonwebtoken';
+
+// Import shared utilities
+import { authMiddleware, optionalAuthMiddleware, generateToken, TokenPayload } from '../shared/auth';
+import { serviceRegistry, initializeServiceRegistry } from '../shared/service-registry';
 
 dotenv.config();
 
@@ -21,10 +26,14 @@ app.use(cors({
 app.use(express.json());
 app.use(morgan('combined'));
 
+// Initialize service registry
+initializeServiceRegistry();
+
 console.log('[API Gateway] Starting with service URLs:');
 console.log(`  User Service: ${USER_SERVICE_URL}`);
 console.log(`  Todo Service: ${TODO_SERVICE_URL}`);
 console.log(`  Notification Service: ${NOTIFICATION_SERVICE_URL}`);
+console.log('[API Gateway] JWT Authentication enabled');
 
 // Health check for gateway
 app.get('/health', (req: Request, res: Response) => {
@@ -59,32 +68,129 @@ app.get('/health/services', async (req: Request, res: Response) => {
   res.json(services);
 });
 
+// Service registry status
+app.get('/registry/status', (req: Request, res: Response) => {
+  const status = serviceRegistry.getStatus();
+  const services = serviceRegistry.getAllServices();
+  
+  res.json({
+    status: 'ok',
+    registry: status,
+    services: Object.entries(services).map(([name, config]) => ({
+      name,
+      url: config.url,
+      healthCheck: config.healthCheckPath,
+      lastCheck: config.lastHealthCheck
+    }))
+  });
+});
+
+// ==================== AUTHENTICATION ROUTES ====================
+
+// POST /auth/login - User login (generates JWT)
+app.post('/auth/login', async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      res.status(400).json({ error: 'Email and password are required' });
+      return;
+    }
+
+    console.log('[API Gateway] Forwarding POST /auth/login to User Service');
+    const response = await axios.post(`${USER_SERVICE_URL}/auth/login`, { email, password }, { timeout: 5000 });
+    
+    // Generate JWT token with user data
+    const user = response.data.user || { userId: response.data.id, email: response.data.email, name: response.data.name };
+    const token = generateToken({
+      userId: user.userId || user.id,
+      email: user.email,
+      name: user.name
+    });
+    
+    res.json({ 
+      ...response.data, 
+      token,
+      user: { ...user, token }
+    });
+  } catch (error: any) {
+    handleServiceError(error, res, 'User Service (Auth)');
+  }
+});
+
+// POST /auth/logout - User logout (invalidate token client-side)
+app.post('/auth/logout', authMiddleware, (req: Request, res: Response) => {
+  // Token invalidation would typically be handled on the client
+  // For stateless JWT, we just return success
+  res.json({ message: 'Logout successful' });
+});
+
+// GET /auth/verify - Verify token
+app.get('/auth/verify', authMiddleware, (req: Request, res: Response) => {
+  res.json({ 
+    valid: true, 
+    user: req.user 
+  });
+});
+
+// POST /auth/refresh - Refresh token
+app.post('/auth/refresh', (req: Request, res: Response) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      res.status(400).json({ error: 'Token is required' });
+      return;
+    }
+
+    // Verify existing token (will throw if invalid)
+    const payload = jwt.verify(token, process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production') as TokenPayload;
+    
+    // Generate new token
+    const newToken = generateToken({
+      userId: payload.userId,
+      email: payload.email,
+      name: payload.name
+    });
+    
+    res.json({ token: newToken });
+  } catch (error: any) {
+    res.status(401).json({ error: 'Invalid token', details: error.message });
+  }
+});
+
 // ==================== USER SERVICE ROUTES ====================
 
-// GET /users - Get all users
-app.get('/users', async (req: Request, res: Response) => {
+// GET /users - Get all users (protected)
+app.get('/users', authMiddleware, async (req: Request, res: Response) => {
   try {
     console.log('[API Gateway] Forwarding GET /users to User Service');
-    const response = await axios.get(`${USER_SERVICE_URL}/users`, { timeout: 5000 });
+    const response = await axios.get(`${USER_SERVICE_URL}/users`, { 
+      timeout: 5000,
+      headers: { 'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1] || ''}` }
+    });
     res.json(response.data);
   } catch (error: any) {
     handleServiceError(error, res, 'User Service');
   }
 });
 
-// GET /users/:id - Get user by ID
-app.get('/users/:id', async (req: Request, res: Response) => {
+// GET /users/:id - Get user by ID (protected)
+app.get('/users/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     console.log(`[API Gateway] Forwarding GET /users/${id} to User Service`);
-    const response = await axios.get(`${USER_SERVICE_URL}/users/${id}`, { timeout: 5000 });
+    const response = await axios.get(`${USER_SERVICE_URL}/users/${id}`, { 
+      timeout: 5000,
+      headers: { 'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1] || ''}` }
+    });
     res.json(response.data);
   } catch (error: any) {
     handleServiceError(error, res, 'User Service');
   }
 });
 
-// POST /users - Create user
+// POST /users - Create user (public registration)
 app.post('/users', async (req: Request, res: Response) => {
   try {
     console.log('[API Gateway] Forwarding POST /users to User Service');
@@ -95,24 +201,30 @@ app.post('/users', async (req: Request, res: Response) => {
   }
 });
 
-// PUT /users/:id - Update user
-app.put('/users/:id', async (req: Request, res: Response) => {
+// PUT /users/:id - Update user (protected)
+app.put('/users/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     console.log(`[API Gateway] Forwarding PUT /users/${id} to User Service`);
-    const response = await axios.put(`${USER_SERVICE_URL}/users/${id}`, req.body, { timeout: 5000 });
+    const response = await axios.put(`${USER_SERVICE_URL}/users/${id}`, req.body, { 
+      timeout: 5000,
+      headers: { 'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1] || ''}` }
+    });
     res.json(response.data);
   } catch (error: any) {
     handleServiceError(error, res, 'User Service');
   }
 });
 
-// DELETE /users/:id - Delete user
-app.delete('/users/:id', async (req: Request, res: Response) => {
+// DELETE /users/:id - Delete user (protected)
+app.delete('/users/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     console.log(`[API Gateway] Forwarding DELETE /users/${id} to User Service`);
-    const response = await axios.delete(`${USER_SERVICE_URL}/users/${id}`, { timeout: 5000 });
+    const response = await axios.delete(`${USER_SERVICE_URL}/users/${id}`, { 
+      timeout: 5000,
+      headers: { 'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1] || ''}` }
+    });
     res.json(response.data);
   } catch (error: any) {
     handleServiceError(error, res, 'User Service');
@@ -121,58 +233,73 @@ app.delete('/users/:id', async (req: Request, res: Response) => {
 
 // ==================== TODO SERVICE ROUTES ====================
 
-// GET /todos - Get all todos
-app.get('/todos', async (req: Request, res: Response) => {
+// GET /todos - Get all todos (protected)
+app.get('/todos', authMiddleware, async (req: Request, res: Response) => {
   try {
     console.log('[API Gateway] Forwarding GET /todos to Todo Service');
-    const response = await axios.get(`${TODO_SERVICE_URL}/todos`, { timeout: 5000 });
+    const response = await axios.get(`${TODO_SERVICE_URL}/todos`, { 
+      timeout: 5000,
+      headers: { 'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1] || ''}` }
+    });
     res.json(response.data);
   } catch (error: any) {
     handleServiceError(error, res, 'Todo Service');
   }
 });
 
-// GET /todos/:id - Get todo by ID
-app.get('/todos/:id', async (req: Request, res: Response) => {
+// GET /todos/:id - Get todo by ID (protected)
+app.get('/todos/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     console.log(`[API Gateway] Forwarding GET /todos/${id} to Todo Service`);
-    const response = await axios.get(`${TODO_SERVICE_URL}/todos/${id}`, { timeout: 5000 });
+    const response = await axios.get(`${TODO_SERVICE_URL}/todos/${id}`, { 
+      timeout: 5000,
+      headers: { 'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1] || ''}` }
+    });
     res.json(response.data);
   } catch (error: any) {
     handleServiceError(error, res, 'Todo Service');
   }
 });
 
-// POST /todos - Create todo
-app.post('/todos', async (req: Request, res: Response) => {
+// POST /todos - Create todo (protected)
+app.post('/todos', authMiddleware, async (req: Request, res: Response) => {
   try {
     console.log('[API Gateway] Forwarding POST /todos to Todo Service');
-    const response = await axios.post(`${TODO_SERVICE_URL}/todos`, req.body, { timeout: 5000 });
+    const response = await axios.post(`${TODO_SERVICE_URL}/todos`, req.body, { 
+      timeout: 5000,
+      headers: { 'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1] || ''}` }
+    });
     res.status(201).json(response.data);
   } catch (error: any) {
     handleServiceError(error, res, 'Todo Service');
   }
 });
 
-// PUT /todos/:id - Update todo
-app.put('/todos/:id', async (req: Request, res: Response) => {
+// PUT /todos/:id - Update todo (protected)
+app.put('/todos/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     console.log(`[API Gateway] Forwarding PUT /todos/${id} to Todo Service`);
-    const response = await axios.put(`${TODO_SERVICE_URL}/todos/${id}`, req.body, { timeout: 5000 });
+    const response = await axios.put(`${TODO_SERVICE_URL}/todos/${id}`, req.body, { 
+      timeout: 5000,
+      headers: { 'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1] || ''}` }
+    });
     res.json(response.data);
   } catch (error: any) {
     handleServiceError(error, res, 'Todo Service');
   }
 });
 
-// DELETE /todos/:id - Delete todo
-app.delete('/todos/:id', async (req: Request, res: Response) => {
+// DELETE /todos/:id - Delete todo (protected)
+app.delete('/todos/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     console.log(`[API Gateway] Forwarding DELETE /todos/${id} to Todo Service`);
-    const response = await axios.delete(`${TODO_SERVICE_URL}/todos/${id}`, { timeout: 5000 });
+    const response = await axios.delete(`${TODO_SERVICE_URL}/todos/${id}`, { 
+      timeout: 5000,
+      headers: { 'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1] || ''}` }
+    });
     res.json(response.data);
   } catch (error: any) {
     handleServiceError(error, res, 'Todo Service');
@@ -181,30 +308,36 @@ app.delete('/todos/:id', async (req: Request, res: Response) => {
 
 // ==================== NOTIFICATION SERVICE ROUTES ====================
 
-// GET /notifications - Get all notifications
-app.get('/notifications', async (req: Request, res: Response) => {
+// GET /notifications - Get all notifications (protected)
+app.get('/notifications', authMiddleware, async (req: Request, res: Response) => {
   try {
     console.log('[API Gateway] Forwarding GET /notifications to Notification Service');
-    const response = await axios.get(`${NOTIFICATION_SERVICE_URL}/notifications`, { timeout: 5000 });
+    const response = await axios.get(`${NOTIFICATION_SERVICE_URL}/notifications`, { 
+      timeout: 5000,
+      headers: { 'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1] || ''}` }
+    });
     res.json(response.data);
   } catch (error: any) {
     handleServiceError(error, res, 'Notification Service');
   }
 });
 
-// GET /notifications/:id - Get notification by ID
-app.get('/notifications/:id', async (req: Request, res: Response) => {
+// GET /notifications/:id - Get notification by ID (protected)
+app.get('/notifications/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     console.log(`[API Gateway] Forwarding GET /notifications/${id} to Notification Service`);
-    const response = await axios.get(`${NOTIFICATION_SERVICE_URL}/notifications/${id}`, { timeout: 5000 });
+    const response = await axios.get(`${NOTIFICATION_SERVICE_URL}/notifications/${id}`, { 
+      timeout: 5000,
+      headers: { 'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1] || ''}` }
+    });
     res.json(response.data);
   } catch (error: any) {
     handleServiceError(error, res, 'Notification Service');
   }
 });
 
-// POST /notifications - Create notification
+// POST /notifications - Create notification (service-to-service only)
 app.post('/notifications', async (req: Request, res: Response) => {
   try {
     console.log('[API Gateway] Forwarding POST /notifications to Notification Service');
@@ -215,36 +348,45 @@ app.post('/notifications', async (req: Request, res: Response) => {
   }
 });
 
-// POST /notifications/:id/retry - Retry notification
-app.post('/notifications/:id/retry', async (req: Request, res: Response) => {
+// POST /notifications/:id/retry - Retry notification (protected)
+app.post('/notifications/:id/retry', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     console.log(`[API Gateway] Forwarding POST /notifications/${id}/retry to Notification Service`);
-    const response = await axios.post(`${NOTIFICATION_SERVICE_URL}/notifications/${id}/retry`, {}, { timeout: 5000 });
+    const response = await axios.post(`${NOTIFICATION_SERVICE_URL}/notifications/${id}/retry`, {}, { 
+      timeout: 5000,
+      headers: { 'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1] || ''}` }
+    });
     res.json(response.data);
   } catch (error: any) {
     handleServiceError(error, res, 'Notification Service');
   }
 });
 
-// GET /notifications/user/:userId - Get notifications by user
-app.get('/notifications/user/:userId', async (req: Request, res: Response) => {
+// GET /notifications/user/:userId - Get notifications by user (protected)
+app.get('/notifications/user/:userId', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
     console.log(`[API Gateway] Forwarding GET /notifications/user/${userId} to Notification Service`);
-    const response = await axios.get(`${NOTIFICATION_SERVICE_URL}/notifications/user/${userId}`, { timeout: 5000 });
+    const response = await axios.get(`${NOTIFICATION_SERVICE_URL}/notifications/user/${userId}`, { 
+      timeout: 5000,
+      headers: { 'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1] || ''}` }
+    });
     res.json(response.data);
   } catch (error: any) {
     handleServiceError(error, res, 'Notification Service');
   }
 });
 
-// DELETE /notifications/:id - Delete notification
-app.delete('/notifications/:id', async (req: Request, res: Response) => {
+// DELETE /notifications/:id - Delete notification (protected)
+app.delete('/notifications/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     console.log(`[API Gateway] Forwarding DELETE /notifications/${id} to Notification Service`);
-    const response = await axios.delete(`${NOTIFICATION_SERVICE_URL}/notifications/${id}`, { timeout: 5000 });
+    const response = await axios.delete(`${NOTIFICATION_SERVICE_URL}/notifications/${id}`, { 
+      timeout: 5000,
+      headers: { 'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1] || ''}` }
+    });
     res.json(response.data);
   } catch (error: any) {
     handleServiceError(error, res, 'Notification Service');
@@ -286,4 +428,3 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 app.listen(PORT, () => {
   console.log(`API Gateway running on port ${PORT}`);
 });
-
