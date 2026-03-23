@@ -21,7 +21,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// ✅ Param type
+//  Param type
 interface IdParams {
   id: string;
 }
@@ -40,7 +40,7 @@ app.get('/users/:id', (req: Request<IdParams>, res: Response) => {
     '2': { id: 2, name: 'Jane Smith', email: 'jane@example.com', createdAt: new Date() }
   };
 
-  const user = users[id]; // ✅ now valid
+  const user = users[id]; //  now valid
 
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
