@@ -12,16 +12,13 @@ export interface TokenPayload {
   exp?: number;
 }
 
-// Extend Express Request
 declare module 'express-serve-static-core' {
   interface Request {
     user?: TokenPayload;
   }
 }
 
-/**
- * Generate JWT token
- */
+
 export const generateToken = (
   payload: Omit<TokenPayload, 'iat' | 'exp'>
 ): string => {
@@ -33,9 +30,7 @@ export const generateToken = (
   return jwt.sign(payload, JWT_SECRET, options);
 };
 
-/**
- * Verify JWT token
- */
+
 export const verifyToken = (token: string): TokenPayload => {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as TokenPayload;
@@ -45,9 +40,7 @@ export const verifyToken = (token: string): TokenPayload => {
   }
 };
 
-/**
- * Extract token from Authorization header
- */
+
 export const extractToken = (authHeader?: string): string | null => {
   if (!authHeader) return null;
 
@@ -59,9 +52,6 @@ export const extractToken = (authHeader?: string): string | null => {
   return parts[1];
 };
 
-/**
- * Middleware to verify JWT token
- */
 export const authMiddleware = (
   req: Request,
   res: Response,
@@ -89,9 +79,7 @@ export const authMiddleware = (
   }
 };
 
-/**
- * Optional auth middleware
- */
+
 export const optionalAuthMiddleware = (
   req: Request,
   res: Response,
