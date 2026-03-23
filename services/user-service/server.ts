@@ -14,24 +14,20 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Middleware for request logging
 app.use((req: Request, res: Response, next: NextFunction) => {
   console.log(`[User Service] ${req.method} ${req.path}`);
   next();
 });
 
-// Health check endpoint
 app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', service: 'user-service' });
 });
 
-// Mock user database for authentication
 const users: { [key: string]: any } = {
   'john@example.com': { id: 1, name: 'John Doe', email: 'john@example.com', password: 'password123' },
   'jane@example.com': { id: 2, name: 'Jane Smith', email: 'jane@example.com', password: 'password123' }
 };
 
-// Login endpoint
 app.post('/auth/login', (req: Request, res: Response) => {
   const { email, password } = req.body;
 
@@ -52,11 +48,9 @@ app.post('/auth/login', (req: Request, res: Response) => {
   });
 });
 
-// Get user by ID
 app.get('/users/:id', (req: Request, res: Response) => {
   const { id } = req.params;
   const userId = Array.isArray(id) ? id[0] : id;
-  // Mock user data
   const users: { [key: string]: any } = {
     '1': { id: 1, name: 'John Doe', email: 'john@example.com', createdAt: new Date() },
     '2': { id: 2, name: 'Jane Smith', email: 'jane@example.com', createdAt: new Date() }
@@ -68,7 +62,6 @@ app.get('/users/:id', (req: Request, res: Response) => {
   res.json(user);
 });
 
-// Get all users
 app.get('/users', (req: Request, res: Response) => {
   const users = [
     { id: 1, name: 'John Doe', email: 'john@example.com', createdAt: new Date() },
@@ -77,7 +70,6 @@ app.get('/users', (req: Request, res: Response) => {
   res.json(users);
 });
 
-// Create user
 app.post('/users', (req: Request, res: Response) => {
   const { name, email } = req.body;
 
@@ -96,7 +88,6 @@ app.post('/users', (req: Request, res: Response) => {
   res.status(201).json(newUser);
 });
 
-// Update user
 app.put('/users/:id', (req: Request, res: Response) => {
   const { id } = req.params;
   const userId = Array.isArray(id) ? id[0] : id;
@@ -111,14 +102,12 @@ app.put('/users/:id', (req: Request, res: Response) => {
   res.json(updatedUser);
 });
 
-// Delete user
 app.delete('/users/:id', (req: Request, res: Response) => {
   const { id } = req.params;
   console.log('[User Service] User deleted:', id);
   res.json({ message: `User ${id} deleted successfully` });
 });
 
-// Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error('[User Service] Error:', err.message);
   res.status(500).json({ error: 'Internal server error' });

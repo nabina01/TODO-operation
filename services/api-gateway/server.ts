@@ -5,7 +5,6 @@ import axios, { AxiosError } from 'axios';
 import morgan from 'morgan';
 import jwt from 'jsonwebtoken';
 
-// Import shared utilities
 import { authMiddleware, optionalAuthMiddleware, generateToken, TokenPayload } from '../shared/auth';
 import { serviceRegistry, initializeServiceRegistry } from '../shared/service-registry';
 
@@ -14,7 +13,6 @@ dotenv.config();
 const app = express();
 const PORT = process.env.GATEWAY_PORT || 5000;
 
-// Service URLs
 const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://localhost:5001';
 const TODO_SERVICE_URL = process.env.TODO_SERVICE_URL || 'http://localhost:5002';
 const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:5003';
@@ -26,7 +24,6 @@ app.use(cors({
 app.use(express.json());
 app.use(morgan('combined'));
 
-// Initialize service registry
 initializeServiceRegistry();
 
 console.log('[API Gateway] Starting with service URLs:');
@@ -35,12 +32,10 @@ console.log(`  Todo Service: ${TODO_SERVICE_URL}`);
 console.log(`  Notification Service: ${NOTIFICATION_SERVICE_URL}`);
 console.log('[API Gateway] JWT Authentication enabled');
 
-// Health check for gateway
 app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', service: 'api-gateway' });
 });
 
-// Health check for all services
 app.get('/health/services', async (req: Request, res: Response) => {
   const services: { [key: string]: any } = {};
 
@@ -68,7 +63,6 @@ app.get('/health/services', async (req: Request, res: Response) => {
   res.json(services);
 });
 
-// Service registry status
 app.get('/registry/status', (req: Request, res: Response) => {
   const status = serviceRegistry.getStatus();
   const services = serviceRegistry.getAllServices();
@@ -85,9 +79,6 @@ app.get('/registry/status', (req: Request, res: Response) => {
   });
 });
 
-// ==================== AUTHENTICATION ROUTES ====================
-
-// POST /auth/login - User login (generates JWT)
 app.post('/auth/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
@@ -118,14 +109,12 @@ app.post('/auth/login', async (req: Request, res: Response) => {
   }
 });
 
-// POST /auth/logout - User logout (invalidate token client-side)
 app.post('/auth/logout', authMiddleware, (req: Request, res: Response) => {
   // Token invalidation would typically be handled on the client
   // For stateless JWT, we just return success
   res.json({ message: 'Logout successful' });
 });
 
-// GET /auth/verify - Verify token
 app.get('/auth/verify', authMiddleware, (req: Request, res: Response) => {
   res.json({ 
     valid: true, 
@@ -133,7 +122,6 @@ app.get('/auth/verify', authMiddleware, (req: Request, res: Response) => {
   });
 });
 
-// POST /auth/refresh - Refresh token
 app.post('/auth/refresh', (req: Request, res: Response) => {
   try {
     const { token } = req.body;
@@ -159,9 +147,7 @@ app.post('/auth/refresh', (req: Request, res: Response) => {
   }
 });
 
-// ==================== USER SERVICE ROUTES ====================
 
-// GET /users - Get all users (protected)
 app.get('/users', authMiddleware, async (req: Request, res: Response) => {
   try {
     console.log('[API Gateway] Forwarding GET /users to User Service');
@@ -175,7 +161,6 @@ app.get('/users', authMiddleware, async (req: Request, res: Response) => {
   }
 });
 
-// GET /users/:id - Get user by ID (protected)
 app.get('/users/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -190,7 +175,6 @@ app.get('/users/:id', authMiddleware, async (req: Request, res: Response) => {
   }
 });
 
-// POST /users - Create user (public registration)
 app.post('/users', async (req: Request, res: Response) => {
   try {
     console.log('[API Gateway] Forwarding POST /users to User Service');
@@ -201,7 +185,6 @@ app.post('/users', async (req: Request, res: Response) => {
   }
 });
 
-// PUT /users/:id - Update user (protected)
 app.put('/users/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -216,7 +199,6 @@ app.put('/users/:id', authMiddleware, async (req: Request, res: Response) => {
   }
 });
 
-// DELETE /users/:id - Delete user (protected)
 app.delete('/users/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -231,9 +213,7 @@ app.delete('/users/:id', authMiddleware, async (req: Request, res: Response) => 
   }
 });
 
-// ==================== TODO SERVICE ROUTES ====================
 
-// GET /todos - Get all todos (protected)
 app.get('/todos', authMiddleware, async (req: Request, res: Response) => {
   try {
     console.log('[API Gateway] Forwarding GET /todos to Todo Service');
@@ -247,7 +227,6 @@ app.get('/todos', authMiddleware, async (req: Request, res: Response) => {
   }
 });
 
-// GET /todos/:id - Get todo by ID (protected)
 app.get('/todos/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -262,7 +241,6 @@ app.get('/todos/:id', authMiddleware, async (req: Request, res: Response) => {
   }
 });
 
-// POST /todos - Create todo (protected)
 app.post('/todos', authMiddleware, async (req: Request, res: Response) => {
   try {
     console.log('[API Gateway] Forwarding POST /todos to Todo Service');
@@ -276,7 +254,6 @@ app.post('/todos', authMiddleware, async (req: Request, res: Response) => {
   }
 });
 
-// PUT /todos/:id - Update todo (protected)
 app.put('/todos/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -291,7 +268,6 @@ app.put('/todos/:id', authMiddleware, async (req: Request, res: Response) => {
   }
 });
 
-// DELETE /todos/:id - Delete todo (protected)
 app.delete('/todos/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -306,9 +282,7 @@ app.delete('/todos/:id', authMiddleware, async (req: Request, res: Response) => 
   }
 });
 
-// ==================== NOTIFICATION SERVICE ROUTES ====================
 
-// GET /notifications - Get all notifications (protected)
 app.get('/notifications', authMiddleware, async (req: Request, res: Response) => {
   try {
     console.log('[API Gateway] Forwarding GET /notifications to Notification Service');
@@ -322,7 +296,6 @@ app.get('/notifications', authMiddleware, async (req: Request, res: Response) =>
   }
 });
 
-// GET /notifications/:id - Get notification by ID (protected)
 app.get('/notifications/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -337,7 +310,6 @@ app.get('/notifications/:id', authMiddleware, async (req: Request, res: Response
   }
 });
 
-// POST /notifications - Create notification (service-to-service only)
 app.post('/notifications', async (req: Request, res: Response) => {
   try {
     console.log('[API Gateway] Forwarding POST /notifications to Notification Service');
@@ -348,7 +320,6 @@ app.post('/notifications', async (req: Request, res: Response) => {
   }
 });
 
-// POST /notifications/:id/retry - Retry notification (protected)
 app.post('/notifications/:id/retry', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -363,7 +334,6 @@ app.post('/notifications/:id/retry', authMiddleware, async (req: Request, res: R
   }
 });
 
-// GET /notifications/user/:userId - Get notifications by user (protected)
 app.get('/notifications/user/:userId', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
@@ -378,7 +348,6 @@ app.get('/notifications/user/:userId', authMiddleware, async (req: Request, res:
   }
 });
 
-// DELETE /notifications/:id - Delete notification (protected)
 app.delete('/notifications/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -393,9 +362,7 @@ app.delete('/notifications/:id', authMiddleware, async (req: Request, res: Respo
   }
 });
 
-// ==================== ERROR HANDLING ====================
 
-// Handle service errors
 function handleServiceError(error: any, res: Response, serviceName: string): void {
   console.error(`[API Gateway] ${serviceName} Error:`, error.message);
 
@@ -414,12 +381,10 @@ function handleServiceError(error: any, res: Response, serviceName: string): voi
   }
 }
 
-// 404 handler
 app.use((req: Request, res: Response) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Global error handler
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error('[API Gateway] Error:', err.message);
   res.status(500).json({ error: 'Internal server error' });
