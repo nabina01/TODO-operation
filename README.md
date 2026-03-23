@@ -5,14 +5,37 @@ A comprehensive full-stack todo management application built with React, TypeScr
 
 ## 📋 Project Overview
 
-This is a complete MERN-style application (with MySQL instead of MongoDB) that demonstrates modern web development practices including:
-- Type-safe frontend and backend code with TypeScript
-- Separation of concerns with clear architectural layers
-- Comprehensive test coverage (unit + integration tests)
-- Docker containerization for easy deployment
+A full-stack microservices-based Todo application demonstrating enterprise architectural patterns:
+
+**What's Included:**
+- 4 independent microservices (User, Todo, Notification, API Gateway)
+- JWT-based authentication across all services
+- BullMQ message queue for async job processing with retries
+- Service registry with automated health monitoring
+- Complete Docker containerization with docker-compose
+- Type-safe TypeScript codebase (frontend + backend)
 - Redux Toolkit for state management
-- REST API following best practices
-- Custom middleware and utilities for validation and error handling
+- Comprehensive test coverage
+- Production-ready error handling and logging
+
+**Quick Start:**
+```bash
+# Start everything
+docker-compose up -d
+sleep 10
+
+# Login
+TOKEN=$(curl -s -X POST http://localhost:5000/auth/login \
+  -d '{"email":"john@example.com","password":"password123"}' | jq -r '.token')
+
+# Create a todo (triggers async notification)
+curl -X POST http://localhost:5000/todos \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"title":"Learn Microservices","userId":1}'
+
+# Check service health
+curl http://localhost:5000/health/services
+```
 
 ---
 
@@ -144,7 +167,38 @@ TODO-operation/
 │   ├── eslint.config.js            # ESLint linting rules
 │   └── Dockerfile                  # Container image definition
 │
-├── docker-compose.yml              # Multi-container orchestration
+├── services/                        # Microservices architecture
+│   ├── shared/
+│   │   ├── auth.ts                 # JWT utilities (generate, verify, middleware)
+│   │   ├── service-registry.ts     # Service discovery & health checks
+│   │   └── message-queue.ts        # BullMQ message queue wrapper
+│   ├── api-gateway/
+│   │   ├── server.ts               # Central request router with auth
+│   │   ├── package.json
+│   │   ├── tsconfig.json
+│   │   └── Dockerfile
+│   ├── user-service/
+│   │   ├── server.ts               # User CRUD & authentication
+│   │   ├── package.json
+│   │   ├── tsconfig.json
+│   │   └── Dockerfile
+│   ├── todo-service/
+│   │   ├── server.ts               # Todo CRUD & queue publishing
+│   │   ├── package.json
+│   │   ├── tsconfig.json
+│   │   └── Dockerfile
+│   ├── notification-service/
+│   │   ├── server.ts               # Notification handling
+│   │   ├── package.json
+│   │   ├── tsconfig.json
+│   │   └── Dockerfile
+│   └── .env.example                # Environment variables template
+│
+├── docker-compose.yml              # Multi-container orchestration (4 microservices + legacy services)
+├── BONUS_FEATURES_DOCUMENTATION.md # Complete bonus features guide
+├── BONUS_FEATURES_QUICK_START.md   # 5-minute bonus features setup
+├── MICROSERVICES_ARCHITECTURE.md   # Detailed architecture documentation
+├── MICROSERVICES_QUICK_START.md    # Microservices quick start guide
 └── README.md                        # This file
 ```
 
@@ -308,16 +362,90 @@ Typed Redux hooks for type safety in components
 
 ### **Base URL**
 ```
-Development: http://localhost:5000/api/todos
-Docker: http://backend:5000/api/todos
-Production: [your-domain]/api/todos
+API Gateway:  http://localhost:5000
+User Service: http://localhost:5001
+Todo Service: http://localhost:5002
+Notification Service: http://localhost:5003
 ```
 
-### **Endpoints**
+### **Endpoints - Authentication (Public)**
+
+#### **1. Login**
+```
+POST /auth/login
+```
+**Request:**
+```json
+{ "email": "john@example.com", "password": "password123" }
+```
+**Response (200):**
+```json
+{
+  "user": { "id": 1, "name": "John Doe", "email": "john@example.com" },
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+#### **2. Verify Token**
+```
+GET /auth/verify
+Authorization: Bearer <token>
+```
+**Response (200):**
+```json
+{ "valid": true, "user": { "userId": 1, "email": "john@example.com", "name": "John Doe" } }
+```
+
+#### **3. Refresh Token**
+```
+POST /auth/refresh
+```
+**Request:** `{ "token": "<existing_token>" }`
+**Response (200):** `{ "token": "<new_token>" }`
+
+#### **4. Logout**
+```
+POST /auth/logout
+Authorization: Bearer <token>
+```
+**Response (200):** `{ "message": "Logout successful" }`
+
+### **Endpoints - System (Public)**
+
+#### **1. Health Check - All Services**
+```
+GET /health/services
+```
+**Response (200):**
+```json
+{
+  "userService": { "status": "ok", "service": "user-service" },
+  "todoService": { "status": "ok", "service": "todo-service" },
+  "notificationService": { "status": "ok", "service": "notification-service" }
+}
+```
+
+#### **2. Service Registry Status**
+```
+GET /registry/status
+```
+**Response (200):**
+```json
+{
+  "status": "ok",
+  "registry": { "lastCheck": "2026-03-23T10:30:00Z", "healthy": true },
+  "services": [
+    { "name": "user-service", "url": "http://localhost:5001", "lastCheck": "2026-03-23T10:30:00Z" }
+  ]
+}
+```
+
+### **Endpoints - Todos (Protected)**
 
 #### **1. Get All Todos**
 ```
-GET /api/todos
+GET /todos
+Authorization: Bearer <token>
 ```
 **Response (200):**
 ```json
@@ -327,11 +455,11 @@ GET /api/todos
   "data": [
     {
       "id": 1,
-      "title": "Learn TypeScript",
-      "description": "Complete TypeScript course",
+      "title": "Learn Microservices",
+      "description": "Understand microservices architecture",
       "completed": false,
-      "createdAt": "2026-03-10T15:12:00.000Z",
-      "updatedAt": "2026-03-10T15:12:00.000Z"
+      "createdAt": "2026-03-23T10:30:00.000Z",
+      "updatedAt": "2026-03-23T10:30:00.000Z"
     }
   ]
 }
@@ -339,11 +467,9 @@ GET /api/todos
 
 #### **2. Get Todo by ID**
 ```
-GET /api/todos/:id
+GET /todos/:id
+Authorization: Bearer <token>
 ```
-**Parameters:**
-- `id` (path, required): Integer ID of todo
-
 **Response (200):**
 ```json
 {
@@ -351,53 +477,45 @@ GET /api/todos/:id
   "message": "Success",
   "data": {
     "id": 1,
-    "title": "Learn TypeScript",
-    "description": "Complete TypeScript course",
+    "title": "Learn Microservices",
+    "description": "Understand microservices architecture",
     "completed": false,
-    "createdAt": "2026-03-10T15:12:00.000Z",
-    "updatedAt": "2026-03-10T15:12:00.000Z"
+    "createdAt": "2026-03-23T10:30:00.000Z",
+    "updatedAt": "2026-03-23T10:30:00.000Z"
   }
-}
-```
-
-**Error (404):**
-```json
-{
-  "success": false,
-  "message": "Todo not found",
-  "error": "Todo not found"
 }
 ```
 
 #### **3. Create Todo**
 ```
-POST /api/todos
+POST /todos
+Authorization: Bearer <token>
 Content-Type: application/json
 ```
-**Request Body:**
+**Request:**
 ```json
 {
-  "title": "Learn TypeScript",
-  "description": "Complete TypeScript course",
-  "completed": false
+  "title": "Learn Microservices",
+  "description": "Understand distributed architecture",
+  "userId": 1
 }
 ```
-
 **Response (201):**
 ```json
 {
   "success": true,
   "message": "Todo created successfully",
   "data": {
-    "id": 1,
-    "title": "Learn TypeScript",
-    "description": "Complete TypeScript course",
+    "id": 5,
+    "title": "Learn Microservices",
+    "description": "Understand distributed architecture",
     "completed": false,
-    "createdAt": "2026-03-10T15:12:00.000Z",
-    "updatedAt": "2026-03-10T15:12:00.000Z"
+    "createdAt": "2026-03-23T10:30:00.000Z",
+    "updatedAt": "2026-03-23T10:30:00.000Z"
   }
 }
 ```
+**Note:** Creating a todo publishes a message to the queue. The API returns immediately while background workers process notifications asynchronously.
 
 **Validation Errors (400):**
 ```json
@@ -681,17 +799,17 @@ VITE_API_URL=http://localhost:5000/api/todos
 
 ## 🎯 Key Features
 
+✅ **Microservices Architecture** - Independent services with API Gateway (User, Todo, Notification, Gateway)
 ✅ **Type-Safe Development** - Full TypeScript both frontend and backend
-✅ **RESTful API** - Clean, documented REST endpoints
+✅ **REST APIs** - Clean endpoints with proper routing and error handling
+✅ **JWT Authentication** - Secure token-based auth across all services
+✅ **Message Queue** - BullMQ + Redis for async job processing with auto-retry
+✅ **Service Registry** - Automatic service discovery with health checks
 ✅ **State Management** - Redux Toolkit with async thunks
-✅ **Validation** - Custom middleware for input validation
-✅ **Error Handling** - Centralized error handling system
 ✅ **Testing** - Unit and integration tests with coverage reports
-✅ **Containerized** - Docker Compose for one-command setup
-✅ **Database Migrations** - Sequelize migrations for schema versioning
-✅ **Code Quality** - ESLint for consistent code style
-✅ **Development Tools** - Nodemon for hot reload, Vite for fast builds
-✅ **Async Job Processing** - BullMQ + Redis for background task execution with retry logic
+✅ **Docker & Docker Compose** - Full containerization with orchestration
+✅ **Database Migrations** - Sequelize migrations for schema management
+✅ **Error Handling** - Centralized error handling with graceful degradation
 
 ---
 
@@ -748,45 +866,331 @@ VITE_API_URL=http://localhost:5000/api/todos
 | createdAt | TIMESTAMP | NOT NULL |
 | updatedAt | TIMESTAMP | NOT NULL |
 
-## Development
+## Architecture
 
-### Database Migrations
+### Microservices Design
 
-```bash
-# Run migrations
-npx sequelize-cli db:migrate
+The application follows a microservices architecture with four independent services:
 
-# Rollback last migration
-npx sequelize-cli db:migrate:undo
+| Service | Port | Responsibility |
+|---------|------|-----------------|
+| **API Gateway** | 5000 | Request routing, authentication, service orchestration |
+| **User Service** | 5001 | User management, authentication endpoints |
+| **Todo Service** | 5002 | Todo CRUD operations, queue publishing |
+| **Notification Service** | 5003 | Notification handling and delivery |
 
-# Create new migration
-npx sequelize-cli migration:generate --name migration-name
+Each service:
+- Runs independently in its own container
+- Has its own server and configuration
+- Communicates via HTTP with proper error handling
+- Validates JWT tokens for protected endpoints
+- Uses environment variables for configuration
+
+### Service Communication Flow
+
+```
+Client Request
+    ↓
+API Gateway (5000)
+    ├→ POST /auth/login → User Service (5001)
+    ├→ GET/POST /todos → Todo Service (5002)
+    │   └→ Publishes to Message Queue (Redis)
+    │       └→ Message Queue Worker
+    │           └→ POST /notifications → Notification Service (5003)
+    └→ GET/POST /notifications → Notification Service (5003)
 ```
 
-### Docker Commands
+**Communication Patterns:**
+- **Synchronous**: Gateway ↔ Services (HTTP with 5s timeout)
+- **Asynchronous**: Services → Queue → Workers (fire-and-forget with retries)
+- **Authentication**: JWT token passed in Authorization header
+
+---
+
+## Authentication
+
+### JWT Implementation
+
+All protected endpoints require Bearer token authentication. Tokens are issued on login and validated across services.
+
+**Token Flow:**
+1. User logs in: `POST /auth/login` → Returns JWT token
+2. Client stores token (e.g., localStorage)
+3. Each request includes: `Authorization: Bearer <token>`
+4. API Gateway validates token and forwards to services
+5. Services verify token before processing protected actions
+
+**Login Example:**
+```bash
+curl -X POST http://localhost:5000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"john@example.com","password":"password123"}'
+
+# Response
+{
+  "user": { "id": 1, "name": "John Doe", "email": "john@example.com" },
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Using Token:**
+```bash
+curl -X GET http://localhost:5000/todos \
+  -H "Authorization: Bearer <your_token_here>"
+```
+
+---
+
+## CI/CD Pipeline
+
+### Build & Deployment Strategy
+
+**Development Branch (dev):**
+- Runs on PR creation
+- Linting: ESLint
+- Testing: Jest (unit + integration, 100% coverage for critical paths)
+- Docker build validation
+
+**Staging Branch (staging):**
+- Runs on merge to staging
+- All dev checks plus:
+- Build backend and frontend
+- Push images to registry
+- Deploy to staging environment
+
+**Production Branch (main):**
+- Manual approval required
+- All staging checks plus:
+- Versioning and tagging
+- Push to production registry
+- Blue-green deployment
+- Smoke tests
+
+### Automated Checks
+
+**Pre-commit:**
+```bash
+npm run lint              # ESLint checks
+npm run test              # Unit tests
+npm run build             # Build verification
+```
+
+**GitHub Actions (Recommended):**
+- Lint on PR: `npx eslint .`
+- Test on PR: `npm test -- --coverage`
+- Build check: `npm run build`
+- Docker build: `docker build .`
+
+### Docker Image Registry
+
+Services are containerized and ready for deployment:
 
 ```bash
+# Build images locally
+docker build -t user-service:latest services/user-service/
+docker build -t todo-service:latest services/todo-service/
+docker build -t notification-service:latest services/notification-service/
+docker build -t api-gateway:latest services/api-gateway/
+
+# Push to registry (e.g., Docker Hub, ECR, GCR)
+docker tag user-service:latest myregistry/user-service:latest
+docker push myregistry/user-service:latest
+```
+
+### Health Checks for Deployment
+
+All services expose health endpoints for load balancers:
+
+```bash
+# Service health
+GET http://localhost:5000/health/services
+GET http://localhost:5001/health
+GET http://localhost:5002/health
+GET http://localhost:5003/health
+
+# Service registry
+GET http://localhost:5000/registry/status
+```
+
+### Monitoring & Logging
+
+**Application Logs:**
+- All services log to stdout (captured by Docker)
+- Use `docker-compose logs` for development
+- Production: Use centralized logging (CloudWatch, ELK, Datadog)
+
+**Health Monitoring:**
+```bash
+# Continuous health check
+watch -n 5 'curl -s http://localhost:5000/health/services | jq'
+```
+
+---
+
+## Message Queue & Asynchronous Processing
+
+### BullMQ + Redis
+
+The system uses BullMQ for async job processing. When a todo is created, a message is published to the queue instead of blocking the API response.
+
+**Queue Flow:**
+1. Todo created → Published to `todo-created` queue
+2. API returns 201 immediately (2-3ms response time)
+3. Background worker processes message asynchronously
+4. Notification sent after 1-second delay
+5. Failed jobs auto-retry (3 attempts with exponential backoff)
+
+**Job Format:**
+```json
+{
+  "type": "todo-created",
+  "payload": {
+    "title": "Learn Microservices",
+    "userId": 1,
+    "todoId": 5
+  },
+  "timestamp": "2026-03-23T10:30:00.000Z"
+}
+```
+
+**Retry Logic:**
+- Attempt 1: Immediate
+- Attempt 2: After 2 seconds
+- Attempt 3: After 4 seconds
+- Failed: Logged and marked as failed
+
+---
+
+## Getting Started
+
+### Prerequisites
+- Docker & Docker Compose OR Node.js 18+
+- Redis (if running locally without Docker)
+- MySQL 8.0 (if running without Docker)
+
+### Option 1: Docker Compose (Recommended)
+
+```bash
+# Clone repository
+git clone https://github.com/nabina01/TODO-operation.git
+cd TODO-operation
+
 # Start all services
-docker-compose up
-
-# Rebuild and start
-docker-compose up --build
-
-# Run in background
 docker-compose up -d
 
+# Wait for services to start (10-15 seconds)
+sleep 15
+
+# Verify all services are running
+curl http://localhost:5000/health/services
+
 # View logs
-docker-compose logs -f [service-name]
-
-# Stop all services
-docker-compose down
-
-# Stop and remove volumes
-docker-compose down -v
+docker-compose logs -f
 ```
 
-### Build for Production
+**Stopping Services:**
+```bash
+docker-compose down          # Stop containers
+docker-compose down -v       # Stop and remove volumes
+```
 
+### Option 2: Local Development
+
+**Terminal 1: Redis**
+```bash
+docker run --name todo-redis -p 6379:6379 redis:7-alpine
+```
+
+**Terminal 2: User Service**
+```bash
+cd services/user-service
+npm install
+npm run dev
+```
+
+**Terminal 3: Todo Service**
+```bash
+cd services/todo-service
+npm install
+npm run dev
+```
+
+**Terminal 4: Notification Service**
+```bash
+cd services/notification-service
+npm install
+npm run dev
+```
+
+**Terminal 5: API Gateway**
+```bash
+cd services/api-gateway
+npm install
+npm run dev
+```
+
+**Terminal 6: Frontend**
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+---
+
+## Service Registry & Health Checks
+
+The API Gateway automatically monitors service health every 30 seconds.
+
+**Check service status:**
+```bash
+curl http://localhost:5000/health/services
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "gateway": { "status": "ok" },
+  "userService": { "status": "ok", "lastCheck": "2026-03-23T10:30:00Z" },
+  "todoService": { "status": "ok", "lastCheck": "2026-03-23T10:30:00Z" },
+  "notificationService": { "status": "ok", "lastCheck": "2026-03-23T10:30:00Z" }
+}
+```
+
+**View service registry:**
+```bash
+curl http://localhost:5000/registry/status
+```
+
+---
+
+## Common Tasks
+
+### Running Tests
+```bash
+cd backend
+npm test                    # All tests with coverage
+npm run test:unit         # Unit tests only
+npm run test:integration  # Integration tests only
+npm run test:watch        # Watch mode
+```
+
+### Database Migrations
+```bash
+cd backend
+
+# Run migrations
+npm run migrate
+
+# Rollback
+npm run migrate:undo
+
+# Generate new migration
+npx sequelize-cli migration:generate --name add-new-field
+```
+
+### Building for Production
 ```bash
 # Backend
 cd backend
@@ -798,6 +1202,179 @@ cd frontend
 npm run build
 npm run preview
 ```
+
+---
+
+## Environment Configuration
+
+### services/.env
+```env
+# Service URLs
+USER_SERVICE_URL=http://localhost:5001
+TODO_SERVICE_URL=http://localhost:5002
+NOTIFICATION_SERVICE_URL=http://localhost:5003
+
+# JWT
+JWT_SECRET=your-super-secret-jwt-key-change-in-production
+JWT_EXPIRY=24h
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# Service Ports
+GATEWAY_PORT=5000
+USER_SERVICE_PORT=5001
+TODO_SERVICE_PORT=5002
+NOTIFICATION_SERVICE_PORT=5003
+```
+
+### backend/.env
+```env
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=todo_db
+DB_USER=root
+DB_PASSWORD=root1234
+PORT=5010
+QUEUE_ENABLED=false
+```
+
+---
+
+## Troubleshooting
+
+**Services not starting:**
+```bash
+# Check if ports are in use
+lsof -i :5000   # Gateway
+lsof -i :5001   # User Service
+lsof -i :5002   # Todo Service
+lsof -i :5003   # Notification Service
+lsof -i :6379   # Redis
+```
+
+**Redis connection error:**
+```bash
+# Verify Redis is running
+redis-cli ping   # Should return "PONG"
+
+# If Docker container:
+docker ps | grep redis
+docker logs todo-redis
+```
+
+**Service not responding:**
+```bash
+# Check service logs
+docker-compose logs todo-service
+docker-compose logs user-service
+
+# Or in terminal where service is running
+# Service should log all requests
+```
+
+**JWT token errors:**
+- Ensure token is in `Authorization: Bearer <token>` format
+- Tokens expire after 24h (check JWT_EXPIRY)
+- All services must use same JWT_SECRET
+
+---
+
+## Deployment
+
+### Local Development Workflow
+
+1. Clone repository: `git clone https://github.com/nabina01/TODO-operation.git`
+2. Create feature branch: `git checkout -b feature/your-feature`
+3. Install dependencies: `npm install` (root and each service)
+4. Start services: `docker-compose up -d` (or run locally)
+5. Make changes and test
+6. Run tests: `npm test`
+7. Commit: `git commit -am "Describe changes"`
+8. Push: `git push origin feature/your-feature`
+9. Create Pull Request
+
+### Docker Deployment
+
+**Production deployment with docker-compose:**
+
+```bash
+# Set production environment variables
+export JWT_SECRET=your-production-secret-key
+export DB_PASSWORD=your-secure-password
+
+# Build and start services
+docker-compose -f docker-compose.yml up -d
+
+# Scale services if needed
+docker-compose up -d --scale todo-service=2 --scale notification-service=2
+
+# View logs
+docker-compose logs -f api-gateway
+
+# Stop and cleanup
+docker-compose down
+docker-compose down -v  # Remove volumes
+```
+
+### Kubernetes Deployment
+
+Services are containerized and ready for Kubernetes. Each service has:
+- Health check endpoints
+- Environment-based configuration
+- Stateless design for horizontal scaling
+
+**Example deployment approach:**
+1. Build and push images to registry
+2. Create ConfigMaps for environment variables
+3. Create Secrets for sensitive data (JWT_SECRET, DB_PASSWORD)
+4. Deploy using manifests or Helm charts
+5. Use Ingress for external access
+6. Deploy Redis separately or use managed service
+
+### Cloud Deployment (AWS/GCP/Azure)
+
+**Recommended approach:**
+- API Gateway → Application Load Balancer
+- Microservices → ECS/Cloud Run/App Service
+- Redis → ElastiCache/Cloud Memory Store/Azure Cache
+- MySQL → RDS/Cloud SQL/Azure Database
+- Monitoring → CloudWatch/Stackdriver/Monitor
+- Logging → ELK/Cloud Logging
+
+---
+
+## Contributing
+
+1. **Fork** the repository
+2. **Create** feature branch: `git checkout -b feature/amazing-feature`
+3. **Make** changes with tests
+4. **Ensure** all tests pass: `npm test`
+5. **Commit** with clear message: `git commit -m "Add amazing feature"`
+6. **Push** to branch: `git push origin feature/amazing-feature`
+7. **Open** Pull Request with description
+
+**Code Standards:**
+- TypeScript strict mode
+- ESLint compliance
+- Minimum 80% test coverage for new code
+- Meaningful commit messages
+- Clear PR descriptions
+
+---
+
+## Support
+
+**Issues & Questions:**
+- GitHub Issues: [nabina01/TODO-operation/issues](https://github.com/nabina01/TODO-operation/issues)
+- Documentation: See detailed guides in `/MICROSERVICES_*.md` files
+
+**Documentation Files:**
+- `MICROSERVICES_QUICK_START.md` - Quick setup guide (5 minutes)
+- `MICROSERVICES_ARCHITECTURE.md` - Detailed architecture (1+ hour)
+- `BONUS_FEATURES_DOCUMENTATION.md` - JWT, queues, service registry
+- `BONUS_FEATURES_QUICK_START.md` - Bonus features setup
 
 ## Features
 
