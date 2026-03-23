@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { authMiddleware } from '../shared/auth';
 
 dotenv.config();
 
@@ -22,6 +23,33 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // Health check endpoint
 app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', service: 'user-service' });
+});
+
+// Mock user database for authentication
+const users: { [key: string]: any } = {
+  'john@example.com': { id: 1, name: 'John Doe', email: 'john@example.com', password: 'password123' },
+  'jane@example.com': { id: 2, name: 'Jane Smith', email: 'jane@example.com', password: 'password123' }
+};
+
+// Login endpoint
+app.post('/auth/login', (req: Request, res: Response) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  const user = users[email];
+  if (!user || user.password !== password) {
+    return res.status(401).json({ error: 'Invalid email or password' });
+  }
+
+  // Return user data (password should not be included)
+  const { password: _, ...userWithoutPassword } = user;
+  res.json({ 
+    user: userWithoutPassword,
+    message: 'Login successful'
+  });
 });
 
 // Get user by ID

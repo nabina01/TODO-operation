@@ -2,6 +2,8 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
+import { messageQueue } from '../shared/message-queue';
+import { authMiddleware } from '../shared/auth';
 
 dotenv.config();
 
@@ -39,6 +41,40 @@ let todoIdCounter = 1;
 app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', service: 'todo-service' });
 });
+
+// Initialize message queue
+const initializeQueue = async () => {
+  try {
+    await messageQueue.connect();
+    
+    // Create and register todo-created queue handler
+    messageQueue.registerHandler('todo-created', async (job) => {
+      const { title, userId } = job.data.payload;
+      console.log(`[Todo Service] Processing todo-created queue: ${title} for user ${userId}`);
+      
+      // Send notification asynchronously
+      try {
+        await axios.post(`${NOTIFICATION_SERVICE_URL}/notifications`, {
+          type: 'todo-created',
+          message: `New todo created: "${title}"`,
+          userId,
+          todoId: job.data.payload.todoId
+        }, { timeout: 3000 });
+        console.log('[Todo Service] Notification sent via queue');
+      } catch (error) {
+        console.warn('[Todo Service] Failed to send notification:', (error as Error).message);
+      }
+    });
+    
+    console.log('[Todo Service] Message queue initialized');
+  } catch (error) {
+    console.warn('[Todo Service] Message queue not available:', (error as Error).message);
+    console.warn('[Todo Service] Continuing without queue support');
+  }
+};
+
+// Initialize queue on startup
+initializeQueue();
 
 // Get all todos
 app.get('/todos', (req: Request, res: Response) => {
@@ -80,17 +116,35 @@ app.post('/todos', async (req: Request, res: Response) => {
     todos.push(newTodo);
     console.log('[Todo Service] Todo created:', newTodo);
 
-    // Trigger notification service asynchronously
+    // Publish to message queue (asynchronous, fire-and-forget)
     try {
-      await axios.post(`${NOTIFICATION_SERVICE_URL}/notifications`, {
+      await messageQueue.publish('todo-created', {
         type: 'todo-created',
-        message: `New todo created: "${title}" by user ${userId}`,
-        todoId: newTodo.id,
-        userId: newTodo.userId
+        payload: {
+          title,
+          userId,
+          todoId: newTodo.id
+        },
+        timestamp: new Date()
       }, {
-        timeout: 5000
-      }).catch((err) => {
-        console.warn('[Todo Service] Failed to notify notification service:', err.message);
+        delay: 1000, // Process after 1 second
+        priority: 'normal'
+      });
+      console.log('[Todo Service] Todo-created event published to queue');
+    } catch (queueError) {
+      console.warn('[Todo Service] Failed to publish to queue, falling back to direct notification');
+      
+      // Fallback: Trigger notification service directly if queue fails
+      try {
+        await axios.post(`${NOTIFICATION_SERVICE_URL}/notifications`, {
+          type: 'todo-created',
+          message: `New todo created: "${title}" by user ${userId}`,
+          todoId: newTodo.id,
+          userId: newTodo.userId
+        }, {
+          timeout: 5000
+        }).catch((err) => {
+          console.warn('[Todo Service] Failed to notify notification service:', err.message);
       });
     } catch (notifyError) {
       console.warn('[Todo Service] Notification service unreachable, continuing anyway');
